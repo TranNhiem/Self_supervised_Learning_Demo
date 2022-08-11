@@ -1,5 +1,7 @@
 # Copyright 2022 TranNhiem SSL Team.
 
+# Code base Inherence from https://github.com/facebookresearch/dino/
+
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
 # the Software without restriction, including without limitation the rights to use,
@@ -19,7 +21,7 @@ import math
 from functools import partial
 import torch
 import torch.nn as nn
-from MVAR_Dino.utils.utils import trunc_normal_
+from utils import trunc_normal_
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     if drop_prob == 0. or not training:
@@ -206,7 +208,6 @@ class VisionTransformer(nn.Module):
 
         return self.pos_drop(x)
 
-
     def forward(self, x): 
         x= self.prepare_tokens(x)
         for blk in self.blocks: 
@@ -235,19 +236,16 @@ class VisionTransformer(nn.Module):
 def vit_tiny(patch_size=16, **kwargs): 
     model=VisionTransformer(
         patch_size=patch_size, embed_dim=384, depth=12, 
-        num_heads=6, mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs
-    )
+        num_heads=6, mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 def vit_small(patch_size=16, **kwargs): 
     model= VisionTransformer(
         patch_size= patch_size, embed_dim=384, depth=12, num_heads=6, 
-        mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs
-    )
+        mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model 
 
 def vit_base(patch_size=16, **kwargs): 
-    model=VisionTransformer(patch_size=patch_size, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, 
-    qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs
-    )
+    model=VisionTransformer(patch_size=patch_size, embed_dim=768, depth=12, num_heads=6, mlp_ratio=4, 
+    qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model 
