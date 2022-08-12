@@ -232,6 +232,34 @@ class patch_head(nn.Module):
 #******************************************************
 # Inference DataLoader
 #******************************************************
+
+class collateFn_patches: 
+
+    def __init__(self,image_size, patch_size, chanels): 
+        self.patch_size= patch_size
+        self.chanels= chanels
+        self.num_patches= (image_size//patch_size)**2
+    
+    def reshape(self, batch): 
+        patches = torch.stack(batch) \
+                    .unfold(2, self.patch_size, self.patch_size)\
+                    .unfold(3, self.patch_size, self.patch_size)
+        
+        num_images= len(patches)
+        patches= patches.reshape(
+            num_images, 
+            self.chanels, 
+            self.num_patches, 
+            self.patch_size,
+            self.patch_size,)
+
+        patches.transpose_(1, 2)
+        return patches.reshape(num_images, self.num_patches, -1) / 255.0 - 0.5
+
+    def __call__(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> torch.FloatTensor: 
+        return self.reshape(batch)
+
+
 class collatesingle_img: 
 
     def __call__(self, batch: List[torch.Tensor]) -> torch.FloatTensor:  
@@ -295,4 +323,18 @@ class normal_dataloader:
             #collate_fn= collatesingle_img()
         )
         return val_dl 
+
+    def val_dataloader_patches(self,patch_size, chanels ): 
+        val_data= ImageOriginalData(self.image_files, self.img_size,self.transform_ImageNet )
+        print(f" total images in Demo Dataset: {len(val_data)}")
+        val_dl= DataLoader(
+            val_data, 
+            self.batch_size*2, 
+            shuffle=False, 
+            drop_last= False, 
+            num_workers=4, 
+            pin_memory= True, 
+            collate_fn= collateFn_patches(image_size=self.img_size, patch_size= patch_size, chanels= chanels)
+        )
+        return val_dl
 
