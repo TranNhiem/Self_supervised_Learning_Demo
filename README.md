@@ -1,2 +1,3 @@
-# Self-supervised_Downstream_Tasks_Benchmark
- This repository evaluate the obtained representation learning of Neural net from self-supervised pretraining stage.
+# Self-supervised-Learning Demo
+
+ This repository deploys the pre-trained neural networks from self-supervised pretraining for the variety downstream applications.
