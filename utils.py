@@ -1,22 +1,47 @@
-import os 
-import sys 
-import time 
-import math 
+
+# Copyright 2022 TranNhiem.
+
+# Code base Inherence from https://github.com/facebookresearch/dino/
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to use,
+# copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all copies
+# or substantial portions of the Software.
+
+import os
+import sys
+import time
+import math
 from collections import defaultdict, deque
-import numpy as np 
-import torch.nn as nn  
+import numpy as np
+import torch.nn as nn
 import torch
+import torchvision
 from functools import partial
 from typing import Any, Callable, List, Tuple
-### For Dataloader Inference 
+# For Dataloader Inference
 from pathlib import Path
 from torch.utils.data import Dataset, DataLoader
 from torchvision import io, transforms
 from sklearn.model_selection import train_test_split
 from PIL import Image
-#******************************************************
+
+# For Visual Attention Map
+import colorsys
+import random
+import matplotlib.pyplot as plt
+import cv2
+from skimage.measure import find_contours
+from matplotlib.patches import Polygon
+import skimage.io
+# ******************************************************
 # Helper functions
-#******************************************************
+# ******************************************************
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     # Cut & paste from PyTorch official master until it's in a few official releases - RW
@@ -58,12 +83,11 @@ def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     # type: (Tensor, float, float, float, float) -> Tensor
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
 
-#******************************************************
+# ******************************************************
 # Loading Pre-trained Weights
-#******************************************************
+# ******************************************************
 
-def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_name, patch_size): 
-    
+def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_name, patch_size):
     '''
     model: ViT architecutre design with random itit Weight  
     pretrained_weights: The path of pretrained weights from your local machine 
@@ -72,26 +96,28 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
     patch_size: this argument provide the patch_size of pretrained model need to load
 
     '''
-    
-    if os.path.isfile(pretrained_weights): 
-        state_dict= torch.load(pretrained_weights, map_location='cpu')
-        if checkpoint_key is not None and checkpoint_key in state_dict: 
+
+    if os.path.isfile(pretrained_weights):
+        state_dict = torch.load(pretrained_weights, map_location='cpu')
+        if checkpoint_key is not None and checkpoint_key in state_dict:
             print(f'take key {checkpoint_key} in provided checkpoint dict')
-            state_dict= state_key[checkpoint_key]
-        ## remove 'Module' prefix 
-        state_dict= {k.replace("module.", ""): v for k,v in state_dict.items()}
-        # remove 'backbone' prefix induced by multicrop wrapper 
-        state_dict= {k.replace("backbone.", ""): v for k,v in state_dict.items()}
-        msg= model.load_state_dict(state_dict, strict=False)
+            state_dict = state_key[checkpoint_key]
+        # remove 'Module' prefix
+        state_dict = {k.replace("module.", ""): v for k,
+                      v in state_dict.items()}
+        # remove 'backbone' prefix induced by multicrop wrapper
+        state_dict = {k.replace("backbone.", ""): v for k,
+                      v in state_dict.items()}
+        msg = model.load_state_dict(state_dict, strict=False)
         print("Pretrained weight found at {}".format(pretrained_weights, msg))
 
-    else: 
+    else:
         print("Not using '--pretrained weights path', Loading Default Models")
-        
-        url= None 
 
-        if model_name =="vit_small" and patch_size==16: 
-            url="dino_deitsmall16_pretrain/dino_deitsmall16_pretrain.pth"
+        url = None
+
+        if model_name == "vit_small" and patch_size == 16:
+            url = "dino_deitsmall16_pretrain/dino_deitsmall16_pretrain.pth"
         elif model_name == "vit_small" and patch_size == 8:
             url = "dino_deitsmall8_pretrain/dino_deitsmall8_pretrain.pth"
         elif model_name == "vit_base" and patch_size == 16:
@@ -108,18 +134,21 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
             url = "dino_xcit_medium_24_p8_pretrain/dino_xcit_medium_24_p8_pretrain.pth"
         elif model_name == "resnet50":
             url = "dino_resnet50_pretrain/dino_resnet50_pretrain.pth"
-        if url is not None: 
-            print("Since no pretrained weights have been provided, we load the reference pretrained DINO weights.")
-            state_dict = torch.hub.load_state_dict_from_url(url="https://dl.fbaipublicfiles.com/dino/" + url)
+        if url is not None:
+            print(
+                "Since no pretrained weights have been provided, we load the reference pretrained DINO weights.")
+            state_dict = torch.hub.load_state_dict_from_url(
+                url="https://dl.fbaipublicfiles.com/dino/" + url)
             model.load_state_dict(state_dict, strict=True)
-
         else:
-            print("There is no reference weights available for this model => We use random weights.")
+            print(
+                "There is no reference weights available for this model => We use random weights.")
 
-def load_pretrained_linear_weights(linear_classifier, model_name, patch_size): 
-    url= None 
-    if model_name == "vit_small" and patch_size==16: 
-         url = "dino_deitsmall16_pretrain/dino_deitsmall16_linearweights.pth"
+
+def load_pretrained_linear_weights(linear_classifier, model_name, patch_size):
+    url = None
+    if model_name == "vit_small" and patch_size == 16:
+        url = "dino_deitsmall16_pretrain/dino_deitsmall16_linearweights.pth"
     elif model_name == "vit_small" and patch_size == 8:
         url = "dino_deitsmall8_pretrain/dino_deitsmall8_linearweights.pth"
     elif model_name == "vit_base" and patch_size == 16:
@@ -130,17 +159,19 @@ def load_pretrained_linear_weights(linear_classifier, model_name, patch_size):
         url = "dino_resnet50_pretrain/dino_resnet50_linearweights.pth"
     if url is not None:
         print("We load the reference pretrained linear weights.")
-        state_dict = torch.hub.load_state_dict_from_url(url="https://dl.fbaipublicfiles.com/dino/" + url)["state_dict"]
+        state_dict = torch.hub.load_state_dict_from_url(
+            url="https://dl.fbaipublicfiles.com/dino/" + url)["state_dict"]
         linear_classifier.load_state_dict(state_dict, strict=True)
     else:
         print("We use random linear weights.")
 
-class patch_head(nn.Module): 
-    def __init__(self, in_dim, num_heads, k_num): 
+
+class patch_head(nn.Module):
+    def __init__(self, in_dim, num_heads, k_num):
         super().__init__()
-        self.cls_token= nn.Parameter(torch.zeros(1, 1, in_dim))
-        
-        ## Adding the LayerScale Block CA
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, in_dim))
+
+        # Adding the LayerScale Block CA
         #self.cls_blocks= nn.ModuleList([])
         # self.cls_blocks = nn.ModuleList([
         #     LayerScale_Block_CA(
@@ -151,127 +182,129 @@ class patch_head(nn.Module):
         #         for i in range(2)])
 
         trunc_normal_(self.cls_token, std=.02)
-        self.norm= partial(nn.LayerNorm, eps=1e-6)(in_dim)
+        self.norm = partial(nn.LayerNorm, eps=1e-6)(in_dim)
         self.apply(self._init_weights)
-        self.k_num= k_num 
-        self.k_size= 3
-        self.loc224= self.get_local_index(196, self.k_size)
+        self.k_num = k_num
+        self.k_size = 3
+        self.loc224 = self.get_local_index(196, self.k_size)
         self.loc96 = self.get_local_index(36, self.k_size)
-        self.embed_dim=in_dim 
+        self.embed_dim = in_dim
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
-    def forward(self, x, loc=False): 
-        cls_tokens= self.cls_token.expand(x.shape[0], -1. -1)
 
-        if loc: 
-            k_size= self.k_size 
-            if x.shape[1]==196: 
+    def forward(self, x, loc=False):
+        cls_tokens = self.cls_token.expand(x.shape[0], -1. - 1)
+
+        if loc:
+            k_size = self.k_size
+            if x.shape[1] == 196:
                 local_idx = self.loc224
-            elif x.shape[1] == 36: 
-                if self.k_size==14: 
-                    k_size=6 
-                local_idx = self.loc96 
+            elif x.shape[1] == 36:
+                if self.k_size == 14:
+                    k_size = 6
+                local_idx = self.loc96
 
-            else: 
+            else:
                 print(x.shape)
                 assert (False)
 
-            ## X here will be Individual Patch (Batches 3, 16, 16)
-            x_norm= nn.functional.normalize(x, dim=-1)
-            ## Compute Cosine Similarity Matrix 
-            sim_matrix= x_norm[:, local_idx] @ x_norm.unsqueeze(2).transpose(-2, -1)
-            top_idx= sim_matrix.squeeze().topk(k= self.k_num, dim=-1)[1].view(-1, self.k_num, 1)
+            # X here will be Individual Patch (Batches 3, 16, 16)
+            x_norm = nn.functional.normalize(x, dim=-1)
+            # Compute Cosine Similarity Matrix
+            sim_matrix = x_norm[:,
+                                local_idx] @ x_norm.unsqueeze(2).transpose(-2, -1)
+            top_idx = sim_matrix.squeeze().topk(
+                k=self.k_num, dim=-1)[1].view(-1, self.k_num, 1)
 
-            x_loc= x[:, local_idx].view(-1, k_size**2-1, self.embed_dim)
-            x_loc= torch.gather(x_loc, 1, top_idx.expand(-1, -1, self.embed_dim))
-            for i, blk in enumerate(self.cls_blocks): 
-                if i ==0: 
-                    glo_tokens= blk(x, cls_tokens)
-                    loc_tokens= blk(x_loc, cls_tokens.repeat(x.shape[1], 1, 1))
-                else: 
-                    glo_tokens= blk(x, glo_tokens)
-                    loc_tokens= blk(x_loc, loc_tokens)
-            loc_tokens= loc_tokens.view(x.shape)
-            x= self.norm(torch.cat([glo_tokens, loc_tokens], dim=1))
-        else: 
-            for i, blk in enumerate(self.cls_blocks): 
-                cls_tokens= blk(x, cls_tokens)
-            x= self.norm(torch.cat([cls_tokens, x], dim=1))
+            x_loc = x[:, local_idx].view(-1, k_size**2-1, self.embed_dim)
+            x_loc = torch.gather(
+                x_loc, 1, top_idx.expand(-1, -1, self.embed_dim))
+            for i, blk in enumerate(self.cls_blocks):
+                if i == 0:
+                    glo_tokens = blk(x, cls_tokens)
+                    loc_tokens = blk(
+                        x_loc, cls_tokens.repeat(x.shape[1], 1, 1))
+                else:
+                    glo_tokens = blk(x, glo_tokens)
+                    loc_tokens = blk(x_loc, loc_tokens)
+            loc_tokens = loc_tokens.view(x.shape)
+            x = self.norm(torch.cat([glo_tokens, loc_tokens], dim=1))
+        else:
+            for i, blk in enumerate(self.cls_blocks):
+                cls_tokens = blk(x, cls_tokens)
+            x = self.norm(torch.cat([cls_tokens, x], dim=1))
 
-        return x 
+        return x
 
-
-        @staticmethod 
-        def get_local_index(N_patches, k_size): 
-            loc_weight = [] 
+        @staticmethod
+        def get_local_index(N_patches, k_size):
+            loc_weight = []
             w = torch.LongTensor(list(range(int(math.sqrt(N_patches)))))
-            ## Why we need to iterate through all patches
-            for i in range(N_patches): 
-                ix, iy = i //len(w), i%len(w) 
-                wx= torch.zeros(int(math.sqrt(N_patches)))
-                wy= torch.zeros(int(math.sqrt(N_patches)))
-                wx[ix]=1 
-                wy[iy]=1 
-                ## Iteration through all N patches of Single Images?
-                for j in range(1, int(k_size//2)+1 ): 
-                    wx[(ix+j)%len(wx)]= 1 
-                    wx[(ix-j)%len(wx)]= 1
-                    wy[(iy+j)%len(wy)]= 1
-                    wy[(iy-j)%len(wy)]= 1
+            # Why we need to iterate through all patches
+            for i in range(N_patches):
+                ix, iy = i // len(w), i % len(w)
+                wx = torch.zeros(int(math.sqrt(N_patches)))
+                wy = torch.zeros(int(math.sqrt(N_patches)))
+                wx[ix] = 1
+                wy[iy] = 1
+                # Iteration through all N patches of Single Images?
+                for j in range(1, int(k_size//2)+1):
+                    wx[(ix+j) % len(wx)] = 1
+                    wx[(ix-j) % len(wx)] = 1
+                    wy[(iy+j) % len(wy)] = 1
+                    wy[(iy-j) % len(wy)] = 1
 
-                weight = (wy.unsqueeze(0)* wx.unsqueeze(1)).view(-1)
-                weight[i] = 0 
+                weight = (wy.unsqueeze(0) * wx.unsqueeze(1)).view(-1)
+                weight[i] = 0
                 loc_weight.append(weight.nonzero().squeeze())
-            
+
             return torch.stack(loc_weight)
 
-#******************************************************
+# ******************************************************
 # Inference DataLoader
-#******************************************************
+# ******************************************************
 
-class collateFn_patches: 
+class collateFn_patches:
 
-    def __init__(self,image_size, patch_size, chanels): 
-        self.patch_size= patch_size
-        self.chanels= chanels
-        self.num_patches= (image_size//patch_size)**2
-    
-    def reshape(self, batch): 
+    def __init__(self, image_size, patch_size, chanels):
+        self.patch_size = patch_size
+        self.chanels = chanels
+        self.num_patches = (image_size//patch_size)**2
+
+    def reshape(self, batch):
         patches = torch.stack(batch) \
-                    .unfold(2, self.patch_size, self.patch_size)\
-                    .unfold(3, self.patch_size, self.patch_size)
-        
-        num_images= len(patches)
-        patches= patches.reshape(
-            num_images, 
-            self.chanels, 
-            self.num_patches, 
+            .unfold(2, self.patch_size, self.patch_size)\
+            .unfold(3, self.patch_size, self.patch_size)
+
+        num_images = len(patches)
+        patches = patches.reshape(
+            num_images,
+            self.chanels,
+            self.num_patches,
             self.patch_size,
             self.patch_size,)
 
         patches.transpose_(1, 2)
         return patches.reshape(num_images, self.num_patches, -1) / 255.0 - 0.5
 
-    def __call__(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> torch.FloatTensor: 
+    def __call__(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> torch.FloatTensor:
         return self.reshape(batch)
 
+class collatesingle_img:
 
-class collatesingle_img: 
-
-    def __call__(self, batch: List[torch.Tensor]) -> torch.FloatTensor:  
+    def __call__(self, batch: List[torch.Tensor]) -> torch.FloatTensor:
         return batch
 
-
 class ImageOriginalData(Dataset):
-    def __init__(self, files: List[str], img_size: int,transform_ImageNet=False): 
-        self.files= files
-        self.resize= transforms.Resize((img_size, img_size))
-        self.transform_ImageNet= transform_ImageNet
-        if self.transform_ImageNet: 
+    def __init__(self, files: List[str], img_size: int, transform_ImageNet=False):
+        self.files = files
+        self.resize = transforms.Resize((img_size, img_size))
+        self.transform_ImageNet = transform_ImageNet
+        if self.transform_ImageNet:
             print("Using imageNet normalization")
         self.transform_normal = transforms.Compose([
             transforms.Resize((img_size, img_size)),
@@ -279,62 +312,192 @@ class ImageOriginalData(Dataset):
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
     # Iterative through all images in dataste
-    def __len__(self): 
+
+    def __len__(self):
         return len(self.files)
 
-    def __getitem__(self, i): 
+    def __getitem__(self, i):
         with open(self.files[i], 'rb') as f:
             img = Image.open(f)
             img = img.convert('RGB')
         #img = io.read_image(self.files[i])
         # Checking the Image Channel
-        # if img.shape[0] == 1: 
+        # if img.shape[0] == 1:
         #     img= torch.cat([img]*3)
         if self.transform_ImageNet:
-            return self.transform_normal(img) 
-        else: 
+            return self.transform_normal(img)
+        else:
             return self.resize(img)
 
-
-class normal_dataloader: 
+class normal_dataloader:
     '''
     This normal dataloader loading dataset with *ONLY One Folder* 
 
     '''
-    
-    def __init__ (self, image_path, image_format="*.jpg", img_size= 224, batch_size=4, subset_data=0.2, transform_ImageNet=False ): 
-        image_files_= [str(file) for file in Path(image_path).glob("*.jpg")]
-        _,  self.image_files = train_test_split(image_files_, test_size=subset_data, random_state=42)
-        
-        self.img_size= img_size
-        self.batch_size= batch_size
-        self.transform_ImageNet=transform_ImageNet
-    
-    def val_dataloader(self): 
-        val_data= ImageOriginalData(self.image_files, self.img_size,self.transform_ImageNet )
+
+    def __init__(self, image_path, image_format="*.jpg", img_size=224, batch_size=4, subset_data=0.2, transform_ImageNet=False):
+        image_files_ = [str(file) for file in Path(image_path).glob("*.jpg")]
+        _,  self.image_files = train_test_split(
+            image_files_, test_size=subset_data, random_state=42)
+
+        self.img_size = img_size
+        self.batch_size = batch_size
+        self.transform_ImageNet = transform_ImageNet
+
+    def val_dataloader(self):
+        val_data = ImageOriginalData(
+            self.image_files, self.img_size, self.transform_ImageNet)
         print(f" total images in Demo Dataset: {len(val_data)}")
-        val_dl= DataLoader(
-            val_data, 
-            self.batch_size*2, 
-            shuffle=False, 
-            drop_last= False, 
-            num_workers=4, 
-            pin_memory= True, 
+        val_dl = DataLoader(
+            val_data,
+            self.batch_size*2,
+            shuffle=False,
+            drop_last=False,
+            num_workers=4,
+            pin_memory=True,
             #collate_fn= collatesingle_img()
         )
-        return val_dl 
+        return val_dl
 
-    def val_dataloader_patches(self,patch_size, chanels ): 
-        val_data= ImageOriginalData(self.image_files, self.img_size,self.transform_ImageNet )
+    def val_dataloader_patches(self, patch_size, chanels):
+        val_data = ImageOriginalData(
+            self.image_files, self.img_size, self.transform_ImageNet)
         print(f" total images in Demo Dataset: {len(val_data)}")
-        val_dl= DataLoader(
-            val_data, 
-            self.batch_size*2, 
-            shuffle=False, 
-            drop_last= False, 
-            num_workers=4, 
-            pin_memory= True, 
-            collate_fn= collateFn_patches(image_size=self.img_size, patch_size= patch_size, chanels= chanels)
+        val_dl = DataLoader(
+            val_data,
+            self.batch_size*2,
+            shuffle=False,
+            drop_last=False,
+            num_workers=4,
+            pin_memory=True,
+            collate_fn=collateFn_patches(
+                image_size=self.img_size, patch_size=patch_size, chanels=chanels)
         )
         return val_dl
+
+# ******************************************************
+# Visualization Attention Map Functions
+# ******************************************************
+# Create the transparence mask
+
+def apply_mask(image, mask, color, alpha=0.5):
+    for c in range(3):
+        image[:, :, c] = image[:, :, c] * \
+            (1 - alpha * mask) + alpha * mask * color[c] * 255
+    return image
+# Create the random Color for the mask
+
+def random_colors(N, bright=True):
+    """
+    Generate random colors.
+    """
+    brightness = 1.0 if bright else 0.7
+    hsv = [(i / N, 1, brightness) for i in range(N)]
+    colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
+    random.shuffle(colors)
+    return colors
+
+def display_instances(image, mask, fname='test', figsize=(5, 5), blur=False, contour=True, alpha=0.5):
+    fig = plt.figure(figsize=figsize, frameon=False)
+    ax = plt.Axes(fig, [0., 0., 1., 1.])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+    ax = plt.gca()
+
+    N = 1
+    mask = mask[None, :, :]
+    # Generate random colors
+    colors = random_colors(N)
+    # Show area outside image boudaries.
+    height, width = image.shape[:2]
+    margin = 0
+    ax.set_ylim(height + margin, -margin)
+    ax.set_xlim(-margin, width + margin)
+    ax.axis('off')
+    masked_image = image.astype(np.uint32).copy()
+    for i in range(N):
+        color = colors[i]
+        _mask = mask[i]
+
+        if blur:
+            _mask = cv2.blur(_mask, (10, 10))
+        # Mask
+        masked_image = apply_mask(masked_image, _mask, color, alpha)
+        # Mask Polygon
+        # Pad to ensure proper polygons for masks that touch image edges
+        if contour:
+            padded_mask = np.zeros((_mask.shape[0] + 2, _mask.shape[1] + 2))
+            padded_mask[1:-1, 1:-1] = _mask
+            contours = find_contours(padded_mask, 0.5)
+            for verts in contours:
+                # substract the padding and flip (y, x) to (x, y)
+                verts = np.fliplr(verts) - 1
+                p = Polygon(verts, facecolor='none', edgecolor=color)
+                ax.add_patch(p)
+    ax.imshow(masked_image.astype(np.uint8), aspect='auto')
+    fig.savefig(fname)
+    print(f"{fname} saved.")
+    return
+
+def attention_retrieving(args, img, threshold, attention_input, save_dir):
+    '''
+
+    Args: 
+    image: the input image tensor (3, h, w)
+    patch_size: the image will patches into multiple patches (patch_size, patch_size)
+    threshold: to a certain percentage of the mass 
+    attention_input: the attention output from VIT model (Usually from the last attention block of the ViT architecture)
+
+    '''
+    # make the image divisible by the patch size
+    w, h = img.shape[1] - img.shape[1] % args.patch_size, img.shape[2] - \
+        img.shape[2] % args.patch_size
+    img = img[:, :w, :h].unsqueeze(0)
+    image = img
+    print(f"image after patching shape : {image.shape}")
+  
+    w_featmap = image.shape[-2] // args.patch_size
+    h_featmap = image.shape[-1] // args.patch_size
+    print(f"w_featmap size of : {w_featmap}")
+    # Number of head
+    nh = attention_input.shape[1]
+
+    # We only keep the output Patch attention
+    attentions = attention_input[0, :, 0, 1:].reshape(nh, -1)
+
+    print(f"This is the Shape attentions using CLS Token : {attentions.shape}")
+    if threshold is not None:
+        # Keeping only a certain percentage of the mass
+        val, idx = torch.sort(attentions)
+        val /= torch.sum(val, dim=1, keepdim=True)
+        cumval = torch.cumsum(val, dim=1)
+        th_attn = cumval > (1-threshold)
+
+        idx2 = torch.argsort(idx)
+        for head in range(nh):
+            th_attn[head] = th_attn[head][idx2[head]]
+
+        th_attn = th_attn.reshape(nh, w_featmap, h_featmap).float()
+        # Interpolate
+        th_attn = nn.functional.interpolate(th_attn.unsqueeze(
+            0), scale_factor=args.patch_size, mode="nearest")[0].cpu().numpy()
+
+    attentions = attentions.reshape(nh, w_featmap, h_featmap)
+    attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=args.patch_size, mode="nearest")[0].cpu().numpy()
+
+    # Saving attention heatmaps
+    os.makedirs(save_dir, exist_ok=True)
+    torchvision.utils.save_image(torchvision.utils.make_grid(
+        image, normalize=True, scale_each=True), os.path.join(save_dir, "attention_visual_.png"))
+    
+    for j in range(nh):
+        fname = os.path.join(save_dir, "attn-head_" + str(j) + ".png")
+        plt.imsave(fname=fname, arr=attentions[j], format='png')
+        print(f'{fname} saved.')
+
+    if threshold is not None:
+        image = skimage.io.imread(os.path.join(save_dir, "attention_visual_.png"))
+        for j in range(nh):
+            display_instances(image, th_attn[j], fname=os.path.join(
+                save_dir, "mask_th" + str(threshold) + "_head" + str(j) + '.png'), blur=False)
 

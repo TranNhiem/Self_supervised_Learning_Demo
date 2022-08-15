@@ -1,4 +1,4 @@
-# Copyright 2022 TranNhiem SSL Team.
+# Copyright 2022 TranNhiem.
 
 # Code base Inherence from https://github.com/facebookresearch/dino/
 
@@ -223,6 +223,7 @@ class VisionTransformer(nn.Module):
             else: 
                 # return attention of the last block 
                 return blk(x, return_attention=True)
+    
     def get_intermediate_layers(self, x, n=1): 
         x= self.prepare_token(x)
         # we return the output tokens from the 'n' last blocks
