@@ -4,6 +4,7 @@ import os
 import sys
 import vision_transformer as vits 
 import torch
+
 def dino_vits16(pretrained=True, **kwargs): 
     """
     ViT-small /16x16 pre-trained with DINO 

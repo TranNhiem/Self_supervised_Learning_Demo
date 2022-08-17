@@ -103,7 +103,7 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
         state_dict = torch.load(pretrained_weights, map_location='cpu')
         if checkpoint_key is not None and checkpoint_key in state_dict:
             print(f'take key {checkpoint_key} in provided checkpoint dict')
-            state_dict = state_key[checkpoint_key]
+            state_dict = state_dict[checkpoint_key]
         # remove 'Module' prefix
         state_dict = {k.replace("module.", ""): v for k,
                       v in state_dict.items()}
@@ -111,7 +111,7 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
         state_dict = {k.replace("backbone.", ""): v for k,
                       v in state_dict.items()}
         msg = model.load_state_dict(state_dict, strict=False)
-        print("Pretrained weight found at {}".format(pretrained_weights, msg))
+        print(f"Pretrained weight found at {pretrained_weights, msg}")
 
     else:
         print("Not using '--pretrained weights path', Loading Default Models")
@@ -136,6 +136,7 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
             url = "dino_xcit_medium_24_p8_pretrain/dino_xcit_medium_24_p8_pretrain.pth"
         elif model_name == "resnet50":
             url = "dino_resnet50_pretrain/dino_resnet50_pretrain.pth"
+        
         if url is not None:
             print(
                 "Since no pretrained weights have been provided, we load the reference pretrained DINO weights.")
@@ -145,7 +146,8 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
         else:
             print(
                 "There is no reference weights available for this model => We use random weights.")
-
+        
+        return model
 
 def load_pretrained_linear_weights(linear_classifier, model_name, patch_size):
     url = None
@@ -549,7 +551,7 @@ def attention_retrieving(args, img, threshold, attention_input, save_dir, blur=F
     
     return attentions, th_attn, img_, attns
 
-def attention_map_color(args, image, th_attn, attention_image, save_dir, blur=False, contour=False, alpha=1): 
+def attention_map_color(args, image, th_attn, attention_image, save_dir, blur=False, contour=False, alpha=0.5): 
     M= image.max()
     m= image.min() 
     

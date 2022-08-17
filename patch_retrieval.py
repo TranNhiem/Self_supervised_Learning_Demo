@@ -15,6 +15,7 @@
 
 import os
 import torch
+import torchvision
 import sys
 from utils import load_pretrained_weights, normal_dataloader, attention_retrieving, attention_map_color
 import torch.nn as nn
@@ -23,7 +24,7 @@ import argparse
 from tqdm.auto import tqdm
 from torchvision import models as torchvision_models
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageDraw
 from torchvision import transforms as pth_transforms
 import matplotlib.pyplot as plt
 from IPython.display import display
@@ -31,7 +32,7 @@ from typing import Any, Callable, List, Tuple, Optional
 from torchvision.transforms.functional import to_pil_image
 from torchvision import io
 # Get the torch hub model
-from hubvits_models import dino_vitb8, dino_vitb16
+from hubvits_models import dino_vitb8, dino_vitb16, dino_vits8, dino_vits16
 from helper_functions import attention_heatmap
 
 # Visualization and Plot the Image
@@ -53,13 +54,13 @@ def get_args_parser():
     # ********************************************************
     # Model parameters
     # ********************************************************
-    parser.add_argument('--arch', default='vit_small', type=str,
+    parser.add_argument('--arch', default='vit_base', type=str,
                         choices=['vit_tiny', 'vit_small', 'vit_base', ]
                         + torchvision_archs +
                         torch.hub.list("facebookresearch/xcit:main"),
                         help="""Name of architecture to train. For quick experiments with ViTs,
         we recommend using vit_tiny or vit_small.""")
-    parser.add_argument('--patch_size', default=16, type=int, help="""Size in pixels
+    parser.add_argument('--patch_size', default=8, type=int, help="""Size in pixels
         of input square patches - default 16 (for 16x16 patches). Using smaller
         values leads to better performance but requires more memory. Applies only
         for ViTs (vit_tiny, vit_small and vit_base). If <16, we recommend disabling
@@ -78,9 +79,9 @@ def get_args_parser():
                         help='Decided loading dataloader with or without Patches image')
     parser.add_argument('--subset_data', default=0.001, type=float,
                         help='How many percentage of your Demo Dataset you want to Use.')
-    parser.add_argument('--single_img_path', default="/home/rick/offline_finetune/Pets/images/miniature_pinscher_153.jpg", type=str,
+    parser.add_argument('--single_img_path', default="/home/rick/offline_finetune/Pets/images/boxer_42.jpg", type=str,
                         help='Please specify path to the ImageNet training data.')
-    parser.add_argument('--image_size', default=224, type=int,
+    parser.add_argument('--image_size', default=480, type=int,
                         help='Image_size resizes standard for all input images.')
 
     parser.add_argument('--output_dir', default="/home/rick/pretrained_weight/DINO_Weight/",
@@ -158,13 +159,13 @@ def batch_images(args):
 # Get a Single image
 
 
-def get_image(args):
+def get_image(args, image_example_path=None):
     '''
     Args:  
     args.image_path: This provides the image in your machine or other source
     args.image_resize: This resizes image to expected size
     '''
-    if args.single_img_path is None:
+    if args.single_img_path is None :
         # user has not specified any image - we use our own image
         print("Please use the `--image_path` argument to indicate the path of the image you wish to visualize.")
         print("Since no image path have been provided, Using Default Pets Images ")
@@ -172,14 +173,24 @@ def get_image(args):
         with open(default_image, 'rb') as f:
             img = Image.open(f)
             img = img.convert('RGB')
-    elif os.path.isfile(args.single_img_path):
-        with open(args.single_img_path, 'rb') as f:
-            img = Image.open(f)
-            img = img.convert('RGB')
-    else:
-        print(f"Provided image path {args.image_path} is non valid.")
-        sys.exit(1)
-
+    if image_example_path is None: 
+        if os.path.isfile(args.single_img_path):
+            with open(args.single_img_path, 'rb') as f:
+                img = Image.open(f)
+                img = img.convert('RGB')
+        else:
+            print(f"Provided image path {args.image_path} is non valid.")
+            sys.exit(1)
+    else: 
+        if os.path.isfile(image_example_path):
+            print("using image_example_path")
+            with open(image_example_path, 'rb') as f:
+                img = Image.open(f)
+                img = img.convert('RGB')
+        else:
+            print(f"Provided image path {args.image_path} is non valid.")
+            sys.exit(1)
+  
     transform = pth_transforms.Compose([
         pth_transforms.Resize((args.image_size, args.image_size)),
         pth_transforms.ToTensor(),
@@ -190,14 +201,26 @@ def get_image(args):
     return img_tensor
 
 
-def top_k_cos_similarity(ancher_image_patch, other_patches, k=4, normalize=True):
+def patches_similarity(anchor_embedding, reference_embedding, normalize=True):
+    '''
+    args: 
+    anchor_embedding: This is the embedding of the anchor image size of ()
+    reference_embedding: This is the embedding of the reference image
+    normalize: This is to normalize the embedding
+    return: 
+    similarity of each patches between anchor and reference image [patches, patches]
+    '''
+    
     if normalize:
-        ancher_patch = ancher_image_patch.norm(dim=-1, keepdim=True)
-        other_patches = ancher_image_patch.norm(dim=-1, keepdim=True)
+        anchor_embedding = nn.functional.normalize(anchor_embedding, p=2, dim=1)
+        reference_embedding = nn.functional.normalize(reference_embedding, p=2, dim=1)
 
     #similarity= ancher_patch.cpu().numpy() @ other_patches.cpu().numpy().T
-    similarity = (ancher_patch @ other_patches.T)
-    similarity_top_k = similarity.topk(k, dim=-1)
+    similarity = torch.bmm(anchor_embedding, reference_embedding.permute(0, 2, 1))
+    score, value= similarity.max(-1)
+    print(f'this is score shape {score.shape}')
+    print(f'this is value shape {value.shape}')
+    return score, value
 
 
 def image_retrieval_topk(embedding: torch.FloatTensor, i: int, topk=4, normalize=True):
@@ -212,7 +235,6 @@ def image_retrieval_topk(embedding: torch.FloatTensor, i: int, topk=4, normalize
     print(f"Similarity method 1: {similarity.shape}")
     # similarity= torch.mm(embedding , embedding[i, :].T)
     # print(f"Similarity method 2: {similarity.shape}")
-
     scores, idx = similarity.cpu().topk(topk, dim=0)  # dim=-1
     print(scores[0])
     print(idx[0])
@@ -296,7 +318,6 @@ def plotting_image_retrieval(args, source_data_embedding, ancher_embedding, i, v
         j += 1
     plt.show()
 
-
 def plot_similarty_matrix(embedding,  val_data):
     '''
     Args: 
@@ -356,15 +377,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-
     device = torch.device(
         "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     # -----------------------------------
     # 2--- loading Model
     # -----------------------------------
-    # model=load_model(args)
-    model = dino_vitb16() #dino_vitb8()
+    model=load_model(args)
+    #model = dino_vitb16() #dino_vitb8(), dino_vits8(), dino_vits16()
     model = model.to(device)
     model_seq = nn.Sequential(*model.blocks)
     model_seq = model_seq.eval().to(device)
@@ -411,17 +431,17 @@ if __name__ == '__main__':
     # 4 Visualization Attention Map
     # -----------------------------------
     # Get Image and Transform to tensor
-    img = get_image(args)
-    image_ = img.view([1, 3, args.image_size, args.image_size]).to(device)
-    print(f"This is image shape: {image_.shape}")
+    # img = get_image(args)
+    # image_ = img.view([1, 3, args.image_size, args.image_size]).to(device)
+    # print(f"This is image shape: {image_.shape}")
 
-    # Forward pass through model get (Ouput representation)
-    with torch.no_grad():
-        attentions_out = model.get_last_selfattention(image_.to(device))
-        #attentions_out = model.get_intermediate_layers(image_.to(device), n=4)
-    print(f"The attention  shape: {attentions_out[-1].shape}")
-    nh = attentions_out.shape[1]  # number of head
-    print(f"Number of attention head: {nh}")
+    # # Forward pass through model get (Ouput representation)
+    # with torch.no_grad():
+    #     attentions_out = model.get_last_selfattention(image_.to(device))
+    #     #attentions_out = model.get_intermediate_layers(image_.to(device), n=4)
+    # print(f"The attention  shape: {attentions_out[-1].shape}")
+    # nh = attentions_out.shape[1]  # number of head
+    # print(f"Number of attention head: {nh}")
 
     # 4.1 Visualization Attention Map for each head
     # attention_map = attention_heatmap(args, attentions_out, image_)
@@ -442,33 +462,98 @@ if __name__ == '__main__':
 
     # 4.2 Visualization Attention Map for all heads Saving to file
 
-    threshold = 0.6  # If threshold is None, all attention map will be saved in Heatmap image only
-    attentions, th_attn, img_, attns = attention_retrieving(args, img, threshold, attentions_out,
-                                                            args.save_dir, blur=False, contour=False, alpha=0.5, visualize_each_head=True)
-    print(f"image shape: {img.shape}")
-    img = img.permute(1, 2, 0)
-    attention_map_color_ = attention_map_color(
-        args, img, th_attn, attentions, args.save_dir,)
+    # threshold = 0.6  # If threshold is None, all attention map will be saved in Heatmap image only
+    # attentions, th_attn, img_, attns = attention_retrieving(args, img, threshold, attentions_out,
+    #                                                         args.save_dir, blur=False, contour=False, alpha=0.5, visualize_each_head=True)
+    # print(f"image shape: {img.shape}")
+    # img = img.permute(1, 2, 0)
+    # attention_map_color_ = attention_map_color(
+    #     args, img, th_attn, attentions, args.save_dir,contour=True, alpha=1)
 
-    final_pic = Image.new(
-        'RGB', (img_.size[1] * 2 + attns.size[0], img_.size[1]))
-    final_pic.paste(img_, (0, 0))
-    final_pic.paste(attention_map_color_, (img_.size[1], 0))
-    final_pic.paste(attns, (img_.size[1] * 2, 0))
-    final_pic.save(args.save_dir + "concate_image_attention_map.png")
+    # final_pic = Image.new(
+    #     'RGB', (img_.size[1] * 2 + attns.size[0], img_.size[1]))
+    # final_pic.paste(img_, (0, 0))
+    # final_pic.paste(attention_map_color_, (img_.size[1], 0))
+    # final_pic.paste(attns, (img_.size[1] * 2, 0))
+    # final_pic.save(args.save_dir + "concate_image_attention_map.png")
     # display(final_pic)
     #plt.imshow(final_pic)
-    # -----------------------------------
+
+    # -----------------------------------------------------------------
     # 4 --- Computing Cosine Similarity (Image Embedding and Patch embedding Level)
-    # -----------------------------------
-    # 1 Plot Similarity of image-level
-    # img = get_image(args)
-    # image_ = img.view([1, 3, args.image_size, args.image_size]).to(device)
-    # patches_img = model.patch_embed(image_)
-    # with torch.no_grad():
-    #     anchor_embedding = model_seq(patches_img.to(device))
-    #     anchor_embedding= anchor_embedding.view([784, 768])
-    # print(f"Single image embedding shape: {anchor_embedding.shape}")
+    # -----------------------------------------------------------------
+    
+    
+    # 1 Sparse Correspondence between two embedding (based on cosine similarity)
+    anchor_i=1
+    anchor_img = get_image(args, data_path.image_files[anchor_i])#data_path.image_files[anchor_i]
+    image_ = anchor_img.view([1, 3, args.image_size, args.image_size]).to(device)
+    patches_img = model.patch_embed(image_)
+    with torch.no_grad():
+        anchor_embedding = model_seq(patches_img.to(device))
+        #anchor_embedding= anchor_embedding.view([784, 768])
+    print(f"Single image embedding shape: {anchor_embedding.shape}")
+    # reference image embedding get from Demo dataset embedding
+    i=2
+    reference_embedding = out_embedding[i,:].unsqueeze(0)
+    print(f"Reference image embedding shape: {reference_embedding.shape}")
+    score, index= patches_similarity(anchor_embedding, reference_embedding)
+
+    ## Retrieving the topk most attention points of the anchor image.
+    with torch.no_grad():
+        attentions_out = model.get_last_selfattention(image_.to(device))
+    print(f"The attention  shape: {attentions_out.shape}")
+    nh = attentions_out.shape[1]  # number of head
+    print(f"Number of attention head: {nh}")
+    ## Removing CLS token from the attention map
+    attentions_out = attentions_out[:, :, 0, 1:].view(anchor_embedding.size(0), -1, args.image_size // args.patch_size, args.image_size // args.patch_size,)
+    print(f"The attention  shape: {attentions_out.shape}")
+    attentions_1 = nn.functional.interpolate(attentions_out, scale_factor=0.5, mode="nearest")
+    print(f"The attention_1  shape: {attentions_1.shape}")
+    attentions = attentions_out.mean(1, keepdim=True)
+    attentions1 = attentions_1.mean(1, keepdim=True)
+    # attentions=nn.functional.normalize(attentions, p=2, dim=1)
+    # attentions1=nn.functional.normalize(attentions1, p=2, dim=1)
+    # attentions=attentions_out.norm(dim=-1, keepdim=True)
+    # attentions1=attentions_1.norm(dim=-1, keepdim=True)
+    print(f"The attention  shape: {attentions.shape, attentions1.shape}")
+
+    # Plotting sparse correspondence between anchor image and reference image
+    print( data_path.image_files[i])
+    reference_image = get_image(args,image_example_path= data_path.image_files[i])
+    reference_image=reference_image.view([1, 3, args.image_size, args.image_size]).to(device)
+    topk_= 5
+    for id, im1, im2, attention, attention1, in zip(index, image_, reference_image, attentions, attentions1):
+        for nh in range(attention.size(0)):
+            attn = attention[nh] ## Original Attention Map
+            attn = attention[nh].flatten()
+            attn1 = attention1[nh].flatten() ## Downsampled Attention Map
+            st= attn.topk(topk_)[1]
+
+            point1 = st
+            point2 = id[st]
+            i1 = torchvision.utils.make_grid(im1, normalize=True, scale_each=True)
+            i1= Image.fromarray(i1.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy())
+            i2 = torchvision.utils.make_grid(im2, normalize=True, scale_each=True)
+            i2 = Image.fromarray(i2.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy())
+            full_img = Image.new('RGB', (args.image_size * 2, args.image_size))
+            draw = ImageDraw.Draw(full_img)
+            unit= args.image_size // args.patch_size
+            full_img.paste(i1, (0, 0))
+            full_img.paste(i2, (args.image_size, 0))
+            for p1, p2 in zip(point1, point2):
+                p1y, p1x = p1 // unit + 0.5, p1 % unit + 0.5
+                p2y, p2x = p2 // unit + 0.5, p2 % unit + 0.5
+
+                # p1y, p1x = torch.div(p1, unit, rounding_mode='trunc')+ 0.5, p1 % unit + 0.5
+                # p2y, p2x = torch.div(p2, unit, rounding_mode='trunc')+ 0.5, p2 % unit + 0.5
+                draw.line((p1x * args.patch_size, 
+                     p1y * args.patch_size, 
+                     p2x * args.patch_size + args.image_size, 
+                     p2y * args.patch_size), width=2, fill='red')
+                full_img.save(args.save_dir + "patch_sparse_correspondence_att_torch_norm.png")
+            
+    
     # i = 2
     # topk = 5
     # #anchor_embedding = None
