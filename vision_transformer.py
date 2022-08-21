@@ -236,8 +236,8 @@ class VisionTransformer(nn.Module):
 
 def vit_tiny(patch_size=16, **kwargs): 
     model=VisionTransformer(
-        patch_size=patch_size, embed_dim=384, depth=12, 
-        num_heads=6, mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+        patch_size=patch_size, embed_dim=192, depth=12, 
+        num_heads=3, mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 def vit_small(patch_size=16, **kwargs): 
@@ -247,6 +247,19 @@ def vit_small(patch_size=16, **kwargs):
     return model 
 
 def vit_base(patch_size=16, **kwargs): 
-    model=VisionTransformer(patch_size=patch_size, embed_dim=768, depth=12, num_heads=6, mlp_ratio=4, 
+    model=VisionTransformer(
+        patch_size=patch_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, 
     qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model 
+
+def vit_base_ibot_16(patch_size=16, **kwargs): 
+    model=VisionTransformer(
+        patch_size=patch_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, 
+    qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model 
+
+def vit_L_16_ibot(patch_size=16, **kwargs):
+    model = VisionTransformer(
+        patch_size=patch_size, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+        qkv_bias=True, **kwargs)
+    return model

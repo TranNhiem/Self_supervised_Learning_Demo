@@ -19,9 +19,9 @@ import torch.nn as nn
 from hubvits_models import dino_vitb8
 
 
-
 '''Image Retrieval for the ImageNet Dataset'''
 def image_retrieval(image_path, model, num_patches=100, patch_size=32, stride=32, device='cpu'):
+    
     '''
     image_path: path to the image
     model: the model to use for inference
@@ -29,5 +29,7 @@ def image_retrieval(image_path, model, num_patches=100, patch_size=32, stride=32
     patch_size: size of the patches
     stride: stride of the patches
     device: the device to use for inference
+
     '''
+    
  

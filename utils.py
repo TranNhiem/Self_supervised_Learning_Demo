@@ -137,6 +137,26 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_nam
         elif model_name == "resnet50":
             url = "dino_resnet50_pretrain/dino_resnet50_pretrain.pth"
         
+        elif model_name == 'vit_base_ibot_16' and patch_size == 16:
+            state_dict = torch.load('/home/rick/pretrained_weight/DINO_Weight/ViT_B_16_ckpt/checkpoint.pth', map_location='cpu')
+            # remove 'Module' prefix
+            state_dict = {k.replace("module.", ""): v for k,
+                        v in state_dict.items()}
+            # remove 'backbone' prefix induced by multicrop wrapper
+            state_dict = {k.replace("backbone.", ""): v for k,
+                        v in state_dict.items()}
+            model.load_state_dict(state_dict, strict=False)
+        
+        elif model_name == 'vit_L_16_ibot' and patch_size == 16: 
+            state_dict = torch.load('/home/rick/pretrained_weight/DINO_Weight/ViT_L_16_ckpt/checkpoint.pth', map_location='cpu')
+            # remove 'Module' prefix
+            state_dict = {k.replace("module.", ""): v for k,
+                        v in state_dict.items()}
+            # remove 'backbone' prefix induced by multicrop wrapper
+            state_dict = {k.replace("backbone.", ""): v for k,
+                        v in state_dict.items()}
+            model.load_state_dict(state_dict, strict=False)
+        
         if url is not None:
             print(
                 "Since no pretrained weights have been provided, we load the reference pretrained DINO weights.")
@@ -589,7 +609,8 @@ def attention_map_color(args, image, th_attn, attention_image, save_dir, blur=Fa
     a = np.cumsum(mask, axis=0)
     for i in range(N):
         mask[i] = mask[i] * (mask[i] == a[i])
-    
+    if N > 6:  
+        N=6 
     colors = company_colors[:N]
 
     # Show area outside image boundaries.

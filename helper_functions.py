@@ -126,6 +126,44 @@ def compute_map(ranks, gnd, kappas=[]):
     return map, aps, pr, prs
 
 
+'''Image feature extractor function'''
+def extract_features(model, loader, use_cuda, multiscale=False):
+    
+    '''
+    args:
+        model: model
+        loader: data loader
+        use_cuda: use cuda or not
+        multiscale: use multiscale or not
+    return:
+        features: extracted features
+    '''
+
+    metric_logger= utils.MetricLogger(delimiter="  ")
+    features=None 
+    for samples, index in metric_logger.log_every(loader, 100): 
+        samples= samples.cuda(non_blocking=True)
+        index= index.cuda(non_blocking=True)
+        if multiscale: 
+            feats= utils.multi_scale(samples, model)
+        else:
+            feats= model(samples).clone() 
+        
+        # init storage feature matrix 
+        if dist.get_rank() == 0 and features is None:
+            if features is None:
+                features= torch.zeros(len(loader.dataset), feats.size(1), feats.size(2), feats.size(3))
+            features[index]= feats.data
+
+    features = torch.FloatTensor()
+    for batch_idx, (inputs, targets) in enumerate(loader):
+        if use_cuda:
+            inputs, targets = inputs.cuda(), targets.cuda()
+        inputs, targets = Variable(inputs), Variable(targets)
+        outputs = model(inputs)
+        features = torch.cat((features, outputs.data), 0)
+    return features
+
 # **********************************************
 # Helper Visualization Attention Map and Images
 # **********************************************
