@@ -17,7 +17,7 @@ import os
 import torch
 import torchvision
 import sys
-from utils import load_pretrained_weights, normal_dataloader, attention_retrieving, attention_map_color
+from Pathch_Retrieval.utils import load_pretrained_weights, normal_dataloader, attention_retrieving, attention_map_color
 import torch.nn as nn
 import vision_transformer as vits
 import argparse
@@ -33,7 +33,7 @@ from torchvision.transforms.functional import to_pil_image
 from torchvision import io
 # Get the torch hub model
 from hubvits_models import dino_vitb8, dino_vitb16, dino_vits8, dino_vits16
-from helper_functions import attention_heatmap
+from Pathch_Retrieval.helper_functions import attention_heatmap
 
 # Visualization and Plot the Image
 # from torchvision.utils import Image, ImageDraw
