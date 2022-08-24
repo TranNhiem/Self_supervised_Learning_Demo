@@ -194,7 +194,6 @@ def load_pretrained_linear_weights(linear_classifier, model_name, patch_size):
 # Inference DataLoader
 # ******************************************************
 
-
 class collateFn_patches:
 
     def __init__(self, image_size, patch_size, chanels):
@@ -221,12 +220,10 @@ class collateFn_patches:
     def __call__(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> torch.FloatTensor:
         return self.reshape(batch)
 
-
 class collatesingle_img:
 
     def __call__(self, batch: List[torch.Tensor]) -> torch.FloatTensor:
         return batch
-
 
 class ImageOriginalData(Dataset):
     def __init__(self, files: List[str], img_size: int, transform_ImageNet=False):
@@ -257,7 +254,6 @@ class ImageOriginalData(Dataset):
             return self.transform_normal(img)
         else:
             return self.resize(img)
-
 
 class normal_dataloader:
     '''
@@ -317,6 +313,7 @@ company_colors = [
     (40,150,100), # green
     (135,75,145), # purple
 ]
+
 company_colors = [(float(c[0]) / 255.0, float(c[1]) / 255.0, float(c[2]) / 255.0) for c in company_colors]
 
 # Create the transparence mask
@@ -336,6 +333,7 @@ def apply_mask2(image, mask, color, alpha=0.5):
     mask = (mask - mi) / (ma - mi)
     for c in range(3):
         image[:, :, c] = image[:, :, c] * (1 - alpha * np.sqrt(mask) * (mask>t))+ alpha * np.sqrt(mask) * (mask>t) * color[c] * 255
+    
     return image
 
 # Create the random Color for the mask

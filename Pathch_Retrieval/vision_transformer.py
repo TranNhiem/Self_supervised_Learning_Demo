@@ -20,8 +20,9 @@ https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision
 import math
 from functools import partial
 import torch
-import torch.nn as nn
-from Pathch_Retrieval.utils import trunc_normal_
+from torch import nn, einsum
+from utils import trunc_normal_
+from einops import rearrange, repeat
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     if drop_prob == 0. or not training:
@@ -88,6 +89,31 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x, attn
 
+''' Building cross attention model with the input query, key and value are from attention layer output.'''
+class CrossAttention(nn.Module):
+    def __init__(self, query_embedim, num_heads=1, qkv_bias=False, qk_scale=None, ):
+        super().__init__()
+        self.num_heads = num_heads
+        head_dim = query_embedim.size(-1) // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+
+    def forward(self, query, key, value, mask=None):
+        #q, k, v = map(lambda t: rearrange(t, 'b d-> b d'), (query, key, value))
+        q, k, v= query, key, value
+        sim = einsum('b d, j d ->  j b', q, k) * self.scale
+        if mask is not None:
+            mask = rearrange(mask, 'b ... -> b (...)')
+            max_neg_value = -torch.finfo(sim.dtype).max
+            mask = repeat(mask, 'b j -> (b h) () j', h =self.num_heads)
+            sim.masked_fill_(~mask, max_neg_value)
+
+        # attention output based on the similarity matrix
+        attn = sim.softmax(dim=-1)
+        out= einsum('j b, i d ->  i b', attn, v)
+        #out= rearrange(out, 'b n (h d) -> (b h) n d', h = self.num_heads)
+        
+        return out, attn
+    
 class Block(nn.Module): 
     '''
     Object of the Transformer Encoder --> Stacking multiple layers to build deeper
@@ -130,9 +156,6 @@ class PatchEmbed(nn.Module):
         B, C, H, W= x.shape
         x=self.proj(x).flatten(2).transpose(1, 2)
         return x 
-
-class LayerScale_Block_CA(nn.Module):
-    pass
 
 class VisionTransformer(nn.Module): 
     """
@@ -266,100 +289,64 @@ def vit_L_16_ibot(patch_size=16, **kwargs):
         qkv_bias=True, **kwargs)
     return model
 
+"""Computing Patch similarity"""
 class patch_head(nn.Module):
-    def __init__(self, in_dim, num_heads, k_num):
+    '''
+    This class returns the similarity between patches 
+    '''
+
+    def __init__(self, in_dim, k_num):
+        
         super().__init__()
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, in_dim))
-
-        # Adding the LayerScale Block CA
-        #self.cls_blocks= nn.ModuleList([])
-        # self.cls_blocks = nn.ModuleList([
-        #     LayerScale_Block_CA(
-        #         dim=in_dim, num_heads=num_heads, mlp_ratio=4.0, qkv_bias=True, qk_scale=None,
-        #         drop=0.0, attn_drop=0.0, drop_path=0.0, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        #         act_layer=nn.GELU, Attention_block=Class_Attention,
-        #         Mlp_block=Mlp)
-        #         for i in range(2)])
-
-        trunc_normal_(self.cls_token, std=.02)
-        self.norm = partial(nn.LayerNorm, eps=1e-6)(in_dim)
-        self.apply(self._init_weights)
         self.k_num = k_num
         self.k_size = 3
         self.loc224 = self.get_local_index(196, self.k_size)
         self.loc96 = self.get_local_index(36, self.k_size)
         self.embed_dim = in_dim
 
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-
-    def forward(self, x, loc=False):
-        cls_tokens = self.cls_token.expand(x.shape[0], -1. - 1)
-
-        if loc:
-            k_size = self.k_size
-            if x.shape[1] == 196:
-                local_idx = self.loc224
-            elif x.shape[1] == 36:
-                if self.k_size == 14:
-                    k_size = 6
-                local_idx = self.loc96
-
-            else:
-                print(x.shape)
-                assert (False)
-
-            # X here will be Individual Patch (Batches 3, 16, 16)
-            x_norm = nn.functional.normalize(x, dim=-1)
-            # Compute Cosine Similarity Matrix
-            sim_matrix = x_norm[:,
-                                local_idx] @ x_norm.unsqueeze(2).transpose(-2, -1)
-            top_idx = sim_matrix.squeeze().topk(
-                k=self.k_num, dim=-1)[1].view(-1, self.k_num, 1)
-
-            x_loc = x[:, local_idx].view(-1, k_size**2-1, self.embed_dim)
-            x_loc = torch.gather(
-                x_loc, 1, top_idx.expand(-1, -1, self.embed_dim))
-            for i, blk in enumerate(self.cls_blocks):
-                if i == 0:
-                    glo_tokens = blk(x, cls_tokens)
-                    loc_tokens = blk(
-                        x_loc, cls_tokens.repeat(x.shape[1], 1, 1))
-                else:
-                    glo_tokens = blk(x, glo_tokens)
-                    loc_tokens = blk(x_loc, loc_tokens)
-            loc_tokens = loc_tokens.view(x.shape)
-            x = self.norm(torch.cat([glo_tokens, loc_tokens], dim=1))
+    def forward(self, x, ):
+        ## X is Batched image tensor with shape [B, patch*patch, embedding_dim]
+        k_size = self.k_size
+        if x.shape[1] == 196:
+            local_idx = self.loc224
+        elif x.shape[1] == 36:
+            if self.k_size == 14:
+                k_size = 6
+            local_idx = self.loc96
         else:
-            for i, blk in enumerate(self.cls_blocks):
-                cls_tokens = blk(x, cls_tokens)
-            x = self.norm(torch.cat([cls_tokens, x], dim=1))
+            print(x.shape)
+            assert (False)
 
-        return x
+        x_norm = nn.functional.normalize(x, dim=-1)
+        # Compute Cosine Similarity Matrix
+        sim_matrix = x_norm[:,local_idx] @ x_norm.unsqueeze(2).transpose(-2, -1)
+        top_idx = sim_matrix.squeeze().topk(k=self.k_num, dim=-1)[1].view(-1, self.k_num, 1)
+        x_loc = x[:, local_idx].view(-1, k_size**2-1, self.embed_dim)
+        ## For multi-gpus we need to use gather
+        x_loc = torch.gather(x_loc, 1, top_idx.expand(-1, -1, self.embed_dim))
+        
+        return top_idx, x_loc
 
-        @staticmethod
-        def get_local_index(N_patches, k_size):
-            loc_weight = []
-            w = torch.LongTensor(list(range(int(math.sqrt(N_patches)))))
-            # Why we need to iterate through all patches
-            for i in range(N_patches):
-                ix, iy = i // len(w), i % len(w)
-                wx = torch.zeros(int(math.sqrt(N_patches)))
-                wy = torch.zeros(int(math.sqrt(N_patches)))
-                wx[ix] = 1
-                wy[iy] = 1
-                # Iteration through all N patches of Single Images?
-                for j in range(1, int(k_size//2)+1):
-                    wx[(ix+j) % len(wx)] = 1
-                    wx[(ix-j) % len(wx)] = 1
-                    wy[(iy+j) % len(wy)] = 1
-                    wy[(iy-j) % len(wy)] = 1
+    @staticmethod
+    def get_local_index(N_patches, k_size):
+        loc_weight = []
+        w = torch.LongTensor(list(range(int(math.sqrt(N_patches)))))
+        # Why we need to iterate through all patches
+        for i in range(N_patches):
+            ix, iy = i // len(w), i % len(w)
+            wx = torch.zeros(int(math.sqrt(N_patches)))
+            wy = torch.zeros(int(math.sqrt(N_patches)))
+            wx[ix] = 1
+            wy[iy] = 1
+            # Iteration through all N patches of Single Images?
+            for j in range(1, int(k_size//2)+1):
+                wx[(ix+j) % len(wx)] = 1
+                wx[(ix-j) % len(wx)] = 1
+                wy[(iy+j) % len(wy)] = 1
+                wy[(iy-j) % len(wy)] = 1
 
-                weight = (wy.unsqueeze(0) * wx.unsqueeze(1)).view(-1)
-                weight[i] = 0
-                loc_weight.append(weight.nonzero().squeeze())
+            weight = (wy.unsqueeze(0) * wx.unsqueeze(1)).view(-1)
+            weight[i] = 0
+            loc_weight.append(weight.nonzero().squeeze())
 
-            return torch.stack(loc_weight)
+        return torch.stack(loc_weight)
