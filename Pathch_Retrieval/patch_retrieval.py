@@ -20,7 +20,9 @@ import torch
 import math
 import torchvision
 import sys
-from utils import load_pretrained_weights, normal_dataloader, attention_retrieving, attention_map_color
+from utils import load_pretrained_weights
+from demo_dataloader import normal_dataloader
+from visual_attention_map import attention_retrieving, attention_map_color, attention_heatmap
 import torch.nn as nn
 import vision_transformer as vits
 import argparse
@@ -36,12 +38,12 @@ from torchvision.transforms.functional import to_pil_image
 from torchvision import io
 # Get the torch hub model
 from hubvits_models import dino_vitb8, dino_vitb16, dino_vits8, dino_vits16
-from helper_functions import attention_heatmap
 
 # Visualization and Plot the Image
 # from torchvision.utils import Image, ImageDraw
 from torchvision.transforms.functional import to_pil_image
 
+from Self-supervised_Downstream_Tasks_Benchmark.image_retrieval.demo_script.inner_interface import select_backbone
 # ******************************************************
 # Arguments needed to load model checkpoint
 # ******************************************************
@@ -98,7 +100,6 @@ def get_args_parser():
     parser.add_argument("--local_rank", default=0, type=int,
                         help="Please ignore and do not set this argument.")
     return parser
-
 
 def load_model(args):
     '''
@@ -463,30 +464,15 @@ if __name__ == '__main__':
     # display(final_pic)
     # plt.imshow(final_pic)
 
-    # -----------------------------------------------------------------
-    # 5 --- Image Retrieval (Anchor Images and batch Random Images)
-    # -----------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------
+    # 5.0 --- Image Retrieval (Anchor Images and batch Random Images) Using CLIP pretrain backbone 
+    # ----------------------------------------------------------------------------------------------
+    #model_, preprocess_ = select_backbone(backbone="ViT-L/14")
 
-    # i = 2
-    # topk = 5
-    # anchor_i = 1
-    # # data_path.image_files[anchor_i]
-    # anchor_img = get_image(args, data_path.image_files[anchor_i])
-    # image_ = anchor_img.view(
-    #     [1, 3, args.image_size, args.image_size]).to(device)
-    # patches_img = model.patch_embed(image_)
-    # with torch.no_grad():
-    #     anchor_embedding = model_seq(patches_img.to(device))
-    #     anchor_embedding= anchor_embedding.view([anchor_embedding.size(1), anchor_embedding.size(2)])
-    #     print(f"anchor_embedding shape: {anchor_embedding.shape}")
-    # #anchor_embedding = None
-    # plotting_image_retrieval(args, out_embedding, anchor_embedding, i, data_path, topk,
-    #                          retrieval_from_exmaple=True, image_path=args.single_img_path, )
-    # # Viusalization of similarity matrix.
-    #plot_similarty_matrix(out_embedding, data_path)
+
 
     # ******************************************************************************
-    # 5.1 Patch Similarity
+    # 5.1 Patch-level Similarity
     # ******************************************************************************
     
     
@@ -510,6 +496,7 @@ if __name__ == '__main__':
     print(f"Reference image embedding shape: {reference_embedding.shape}")
     
     topk = 10
+    patch_position=10
     similarity = patches_similarity(
         anchor_embedding, reference_embedding, topk=topk, patch_position=patch_position)
     # ----------------------------------------------------------------------------------------------

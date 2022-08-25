@@ -255,6 +255,5 @@ if __name__ == "__main__":
     # maybe apply gr.TabbedInterface to intergrate our demo app!!
     demo = gr.TabbedInterface([blk_demo_1, blk_demo_1, blk_demo_1], 
                                ["Multimodal Image-Retrival", "Attention Visualization (segmentation)", "Patch-level Matching"],
-                               css=css_def
-                               )
+                               css=css_def)
     demo.launch(share=True, enable_queue=True)
