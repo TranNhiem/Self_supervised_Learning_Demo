@@ -59,6 +59,7 @@ def random_colors(N, bright=True):
     random.shuffle(colors)
     return colors
 
+# Helper function to plot the attention heatmap 
 def display_instances(image, mask, fname='test', figsize=(5, 5), blur=False, contour=True, alpha=0.5, visualize_each_head=False):
     fig = plt.figure(figsize=figsize, frameon=False)
     ax = plt.Axes(fig, [0., 0., 1., 1.])
@@ -106,6 +107,7 @@ def display_instances(image, mask, fname='test', figsize=(5, 5), blur=False, con
     print(f"{fname} saved.")
     return
 
+# Function to visualize attention map
 def attention_retrieving(args, img, threshold, attention_input, save_dir, blur=False, contour=True, alpha=0.5, visualize_each_head=True):
     '''
 
@@ -181,6 +183,7 @@ def attention_retrieving(args, img, threshold, attention_input, save_dir, blur=F
     
     return attentions, th_attn, img_, attns
 
+# Function to visualize attention map in different colors 
 def attention_map_color(args, image, th_attn, attention_image, save_dir, blur=False, contour=False, alpha=0.5): 
     M= image.max()
     m= image.min() 
@@ -259,3 +262,48 @@ def attention_map_color(args, image, th_attn, attention_image, save_dir, blur=Fa
     attn_color = Image.open(fname)
 
     return attn_color
+
+# Visualization Attention Map and Images
+def attention_heatmap(args,  attention_input, img,):
+    '''
+    Args: 
+    image: the input image tensor (3, h, w)
+    patch_size: the image will patches into multiple patches (patch_size, patch_size)
+    threshold: to a certain percentage of the mass 
+    attention_input: the attention output from VIT model (Usually from the last attention block of the ViT architecture)
+
+    '''
+    # make the image divisible by the patch size
+    w, h = img.shape[1] - img.shape[1] % args.patch_size, img.shape[2] - \
+        img.shape[2] % args.patch_size
+    img = img[:, :w, :h].unsqueeze(0)
+
+    print(f"image after patching shape : {img.shape}")
+
+    w_featmap = int(img.shape[-2] // args.patch_size)
+    h_featmap = int(img.shape[-1] // args.patch_size)
+    print(f"w_featmap size of : {w_featmap, h_featmap}")
+    # Number of head
+    nh = int(attention_input.shape[1])
+    # We only keep the output Patch attention -> #Removing CLS token
+    attentions = attention_input[0, :, 0, 1:].reshape(nh, -1)
+    print(f"attentions shape : {attentions.shape}")
+    # Reshape the attention score to resmeble mini patches
+    attentions = attentions.reshape(nh, w_featmap, h_featmap).float()
+    attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=args.patch_size, mode="nearest")[0].cpu().numpy()
+    print(f"attention shape after interpolation : {attentions.shape}")
+    return attentions
+    #  ploting multiple attention maps from different attention heads.
+    # n_row= int(nh / 2)
+    # fig, axes = plt.subplots(nrows=n_row, ncols=2, figsize=(10, 10))
+    # idx = 0
+    # for i in range(n_row):
+    #     for j in range(2):
+    #         if idx < nh:
+    #             axes[i, j].imshow(img[0])
+    #             axes[i, j].imshow(attentions[..., idx],
+    #                               cmap="inferno", alpha=0.6)
+    #             axes[i, j].title.set_text(f"Attention head: {idx}")
+    #             axes[i, j].axis("off")
+    #             idx += 1
+

@@ -22,8 +22,6 @@ import torch.nn as nn
 # Helper function for image Retrieval
 # **********************************************
 '''Compute the average precision (AP) of a ranked list of images'''
-
-
 def compute_ap(ranks, positive_sample):
     '''
     args: 
@@ -47,8 +45,6 @@ def compute_ap(ranks, positive_sample):
         precision_1 = float(i+1) / (rank+1)
         ap += (precision_0+precision_1)*recall_step/2.
     return ap
-
-
 '''
 The function computes the mAP for given set of returned results
     Usage: 
@@ -58,8 +54,6 @@ The function computes the mAP for given set of returned results
                  computes mean average precision (map), average precision (aps) for each query
                  computes mean precision at kappas (pr), precision at kappas (prs) for each query
 '''
-
-
 def compute_map(ranks, gnd, kappas=[]):
     '''
     args: 
@@ -164,50 +158,49 @@ def extract_features(model, loader, use_cuda, multiscale=False):
         features = torch.cat((features, outputs.data), 0)
     return features
 
-# **********************************************
-# Helper Visualization Attention Map and Images
-# **********************************************
-
-
-def attention_heatmap(args,  attention_input, img,):
+'''Function helps to plot the similarity matrix'''
+def plot_similarty_matrix(embedding,  val_data):
     '''
     Args: 
-    image: the input image tensor (3, h, w)
-    patch_size: the image will patches into multiple patches (patch_size, patch_size)
-    threshold: to a certain percentage of the mass 
-    attention_input: the attention output from VIT model (Usually from the last attention block of the ViT architecture)
+    embeding: Dimension should be single *Embedding TENSOR*
 
     '''
-    # make the image divisible by the patch size
-    w, h = img.shape[1] - img.shape[1] % args.patch_size, img.shape[2] - \
-        img.shape[2] % args.patch_size
-    img = img[:, :w, :h].unsqueeze(0)
+    original_images = []
+    for filename in val_data.image_files:
+        with open(filename, 'rb') as f:
+            image = Image.open(f)
+            image = image.convert('RGB')
+        original_images.append(image)
 
-    print(f"image after patching shape : {img.shape}")
+    # embedding /= embedding.norm(dim=0, keepdim=True)
+    # similarity = embedding.cpu().numpy() @ embedding[1, :].cpu().numpy().T
+    similarity = embedding[0, :] @ embedding[1, :].T
+    similarity = similarity.cpu().numpy()
 
-    w_featmap = int(img.shape[-2] // args.patch_size)
-    h_featmap = int(img.shape[-1] // args.patch_size)
-    print(f"w_featmap size of : {w_featmap, h_featmap}")
-    # Number of head
-    nh = int(attention_input.shape[1])
-    # We only keep the output Patch attention -> #Removing CLS token
-    attentions = attention_input[0, :, 0, 1:].reshape(nh, -1)
-    print(f"attentions shape : {attentions.shape}")
-    # Reshape the attention score to resmeble mini patches
-    attentions = attentions.reshape(nh, w_featmap, h_featmap).float()
-    attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=args.patch_size, mode="nearest")[0].cpu().numpy()
-    print(f"attention shape after interpolation : {attentions.shape}")
-    return attentions
-    #  ploting multiple attention maps from different attention heads.
-    # n_row= int(nh / 2)
-    # fig, axes = plt.subplots(nrows=n_row, ncols=2, figsize=(10, 10))
-    # idx = 0
-    # for i in range(n_row):
-    #     for j in range(2):
-    #         if idx < nh:
-    #             axes[i, j].imshow(img[0])
-    #             axes[i, j].imshow(attentions[..., idx],
-    #                               cmap="inferno", alpha=0.6)
-    #             axes[i, j].title.set_text(f"Attention head: {idx}")
-    #             axes[i, j].axis("off")
-    #             idx += 1
+    print(f"This is the shape of similiarity matrix: {similarity.shape}")
+    count = 8
+    plt.figure(figsize=(20, 14))
+    # plt.colorbar() # plt.yticks(range(count), anchor_image, fontsize=18)
+    plt.imshow(similarity, vmin=0.1, vmax=0.3)
+    texts = ['test', "test", 'test', "test", 'test', "test", 'test', "test"]
+    plt.yticks(range(count), texts, fontsize=18)
+    # for i, image in enumerate(original_images):
+    #     plt.imshow(image, extent=(
+    #         i - 0.5, i + 0.5, -1.6, -0.6), origin="lower")
+    plt.xticks([])
+    for i, image in enumerate(original_images):
+        plt.imshow(image, extent=(
+            i - 0.5, i + 0.5, -1.6, -0.6), origin="lower")
+    for x in range(similarity.shape[0]):
+        for y in range(similarity.shape[1]):
+            plt.text(x, y, f"{similarity[y, x]:.2f}",
+                     ha="center", va="center", size=12)
+
+    for side in ["left", "top", "right", "bottom"]:
+        plt.gca().spines[side].set_visible(False)
+
+    plt.xlim([-0.5, count - 0.5])
+    plt.ylim([count + 0.5, -2])
+    plt.title("Cosine similarity between text and image features", size=20)
+
+    plt.show()
