@@ -17,6 +17,11 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import torch.nn as nn
+from PIL import Image
+from torchvision import io
+from torchvision import transforms as pth_transforms
+from torchvision.transforms.functional import to_pil_image
+
 
 # **********************************************
 # Helper function for image Retrieval
@@ -120,43 +125,6 @@ def compute_map(ranks, gnd, kappas=[]):
     return map, aps, pr, prs
 
 
-'''Image feature extractor function'''
-def extract_features(model, loader, use_cuda, multiscale=False):
-    
-    '''
-    args:
-        model: model
-        loader: data loader
-        use_cuda: use cuda or not
-        multiscale: use multiscale or not
-    return:
-        features: extracted features
-    '''
-
-    metric_logger= utils.MetricLogger(delimiter="  ")
-    features=None 
-    for samples, index in metric_logger.log_every(loader, 100): 
-        samples= samples.cuda(non_blocking=True)
-        index= index.cuda(non_blocking=True)
-        if multiscale: 
-            feats= utils.multi_scale(samples, model)
-        else:
-            feats= model(samples).clone() 
-        
-        # init storage feature matrix 
-        if dist.get_rank() == 0 and features is None:
-            if features is None:
-                features= torch.zeros(len(loader.dataset), feats.size(1), feats.size(2), feats.size(3))
-            features[index]= feats.data
-
-    features = torch.FloatTensor()
-    for batch_idx, (inputs, targets) in enumerate(loader):
-        if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda()
-        inputs, targets = Variable(inputs), Variable(targets)
-        outputs = model(inputs)
-        features = torch.cat((features, outputs.data), 0)
-    return features
 
 '''Function helps to plot the similarity matrix'''
 def plot_similarty_matrix(embedding,  val_data):
@@ -204,3 +172,19 @@ def plot_similarty_matrix(embedding,  val_data):
     plt.title("Cosine similarity between text and image features", size=20)
 
     plt.show()
+
+
+def plotting_image_retrieval(args,anchor_image, score,idx, val_dat ):
+    
+    resize = pth_transforms.Resize((args.image_size, args.image_size,))
+    plt.imshow(anchor_image)
+    ig, axs = plt.subplots(1, len(idx), figsize=(12, 5))
+    for i_, score, ax in zip(idx, score, axs):
+        img = to_pil_image(
+            resize(io.read_image(val_dat.image_files[i_])))
+        ax.imshow(img)
+        ax.set_title(f"{score:.4f}")
+    plt.show()
+
+
+

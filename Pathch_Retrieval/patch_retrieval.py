@@ -35,15 +35,14 @@ import matplotlib.pyplot as plt
 from IPython.display import display
 from typing import Any, Callable, List, Tuple, Optional
 from torchvision.transforms.functional import to_pil_image
-from torchvision import io
+from helper_functions import plotting_image_retrieval
 # Get the torch hub model
 from hubvits_models import dino_vitb8, dino_vitb16, dino_vits8, dino_vits16
 
 # Visualization and Plot the Image
 # from torchvision.utils import Image, ImageDraw
-from torchvision.transforms.functional import to_pil_image
 
-from Self-supervised_Downstream_Tasks_Benchmark.image_retrieval.demo_script.inner_interface import select_backbone
+import open_clip
 # ******************************************************
 # Arguments needed to load model checkpoint
 # ******************************************************
@@ -56,12 +55,13 @@ torchvision_archs = sorted(name for name in torchvision_models.__dict__
 def get_args_parser():
 
     parser = argparse.ArgumentParser('Patch-Match Retrieval', add_help=False)
-    
+
     # ********************************************************
     # Model parameters
     # ********************************************************
-    parser.add_argument('--arch', default='vit_L_16_ibot', type=str,choices=['vit_tiny', 'vit_small', 'vit_base', 'vit_base_ibot_16', 'vit_L_16_ibot']
-                        + torchvision_archs + torch.hub.list("facebookresearch/xcit:main"),
+    parser.add_argument('--arch', default='vit_L_16_ibot', type=str, choices=['vit_tiny', 'vit_small', 'vit_base', 'vit_base_ibot_16', 'vit_L_16_ibot']
+                        + torchvision_archs +
+                        torch.hub.list("facebookresearch/xcit:main"),
                         help="""Name of architecture to train. For quick experiments with ViTs,
         we recommend using vit_tiny or vit_small.""")
     parser.add_argument('--patch_size', default=16, type=int, help="""Size in pixels
@@ -101,6 +101,7 @@ def get_args_parser():
                         help="Please ignore and do not set this argument.")
     return parser
 
+
 def load_model(args):
     '''
     Following arguments using 
@@ -134,6 +135,8 @@ def load_model(args):
 # ******************************************************
 
 # Get Batch of all images from Demo dataset
+
+
 def batch_images(args):
     '''
     Args
@@ -158,6 +161,8 @@ def batch_images(args):
     return val_dl, val_dataset
 
 # Get a Single image
+
+
 def get_image(args, image_example_path=None):
     '''
     Args:  
@@ -198,6 +203,7 @@ def get_image(args, image_example_path=None):
     img_tensor = transform(img)
 
     return img_tensor
+
 
 def patches_similarity(anchor_embedding, reference_embedding, normalize=True, patch_position=1, topk=10):
     '''
@@ -244,6 +250,7 @@ def patches_similarity(anchor_embedding, reference_embedding, normalize=True, pa
 
     return idx
 
+
 def image_retrieval_topk(embedding: torch.FloatTensor, i: int, topk=4, normalize=True):
     if normalize:
         #embedding = embedding.norm(dim=-1, keepdim=True)
@@ -261,6 +268,7 @@ def image_retrieval_topk(embedding: torch.FloatTensor, i: int, topk=4, normalize
 
     print("this is idx value:", idx.shape)
     return idx
+
 
 def image_retrieval_topk_extra(source_data_embedding: torch.FloatTensor,
                                anchor_image_embedding: torch.FloatTensor,
@@ -298,58 +306,12 @@ def image_retrieval_topk_extra(source_data_embedding: torch.FloatTensor,
     print("This is score value", scores.shape)
     return scores.cpu().numpy(), idx.cpu().numpy()
 
-def plotting_image_retrieval(args, source_data_embedding, ancher_embedding, i, val_dat,
-                             topk, retrieval_from_exmaple=False, image_path: Optional[str] = None, ):
-
-    if retrieval_from_exmaple:
-        print("you must provide 2 argugment 1: image_path argument, 2:dataloader_patches == False ")
-
-        if image_path is None:
-            raise ValueError("You are not providing image_path argument")
-        else:
-            resize = pth_transforms.Resize((args.image_size, args.image_size,))
-            image = to_pil_image(resize(io.read_image(image_path)))
-            plt.imshow(image)
-            scores, idx = image_retrieval_topk_extra(
-                source_data_embedding, ancher_embedding, topk=topk)
-            print(scores.shape)
-            print(idx.shape)
-            print(idx)
-            print(scores)
-            ig, axs = plt.subplots(1, len(idx), figsize=(12, 5))
-            for i_, score, ax in zip(idx, scores, axs):
-                img = to_pil_image(
-                    resize(io.read_image(val_dat.image_files[i_])))
-                ax.imshow(img)
-                ax.set_title(f"{score:.4f}")
-            plt.show()
-    else:
-        resize = pth_transforms.Resize((args.image_size, args.image_size,))
-        print("image_path", val_dat.image_files[i])
-        image = to_pil_image(resize(io.read_image(val_dat.image_files[i])))
-        plt.imshow(image)
-        scores, idx = image_retrieval_topk(source_data_embedding, i, topk=topk)
-        idx = idx
-        scores = scores
-
-        ig, axs = plt.subplots(1, 5, figsize=(12, 5))
-        j = 0
-        for i_, score, ax in zip(idx, scores, axs):
-            print(i_.shape)
-            print("This is idx image", i_)
-            img = to_pil_image(
-                resize(io.read_image(val_dat.image_files[i_[j][0]])))
-            ax.imshow(img)
-            ax.set_title(f"{score[j][0]:.4f}")
-            j += 1
-        plt.show()
 
 if __name__ == '__main__':
 
     # ******************************************************
     # Unit Test Code
     # ******************************************************
-    
     # -----------------------------------
     # 1---- Get all Input Argments
     # -----------------------------------
@@ -372,7 +334,7 @@ if __name__ == '__main__':
     # -----------------------------------
     # 3--- Loading dataset
     # -----------------------------------
-    ## Single Image
+    # Single Image
     # img=get_image(args)
     # image_=img[None, :]
     # patches_img=model.patch_embed(image_)
@@ -411,17 +373,17 @@ if __name__ == '__main__':
     # 4 Visualization Attention Map
     # -----------------------------------
     # # ## Get Image and Transform to tensor
-    # img = get_image(args)
-    # image_ = img.view([1, 3, args.image_size, args.image_size]).to(device)
-    # print(f"This is image shape: {image_.shape}")
+    img = get_image(args)
+    image_ = img.view([1, 3, args.image_size, args.image_size]).to(device)
+    print(f"This is image shape: {image_.shape}")
 
-    # # Forward pass through model get (Ouput representation)
-    # with torch.no_grad():
-    #     attentions_out = model.get_last_selfattention(image_.to(device))
-    #     #attentions_out = model.get_intermediate_layers(image_.to(device), n=4)
-    # print(f"The attention  shape: {attentions_out[-1].shape}")
-    # nh = attentions_out.shape[1]  # number of head
-    # print(f"Number of attention head: {nh}")
+    # Forward pass through model get (Ouput representation)
+    with torch.no_grad():
+        attentions_out = model.get_last_selfattention(image_.to(device))
+        #attentions_out = model.get_intermediate_layers(image_.to(device), n=4)
+    print(f"The attention  shape: {attentions_out[-1].shape}")
+    nh = attentions_out.shape[1]  # number of head
+    print(f"Number of attention head: {nh}")
 
     # ******************************************************
     # 4.1 Visualization Attention Heat Map for each head
@@ -446,7 +408,7 @@ if __name__ == '__main__':
     # ******************************************************
     # 4.2 Visualization Attention Heat Map and Colors attention Map for all heads Saving to file
     # ******************************************************
-    
+
     # threshold = 0.5  # If threshold is None, all attention map will be saved in Heatmap image only
     # attentions, th_attn, img_, attns = attention_retrieving(args, img, threshold, attentions_out,
     #                                                         args.save_dir, blur=False, contour=False, alpha=0.5, visualize_each_head=True)
@@ -465,90 +427,112 @@ if __name__ == '__main__':
     # plt.imshow(final_pic)
 
     # ----------------------------------------------------------------------------------------------
-    # 5.0 --- Image Retrieval (Anchor Images and batch Random Images) Using CLIP pretrain backbone 
+    # 5.0 --- Image Retrieval (Anchor Images and batch Random Images) Using CLIP pretrain backbone
     # ----------------------------------------------------------------------------------------------
-    #model_, preprocess_ = select_backbone(backbone="ViT-L/14")
+    '''
+    _PRETRAINED = {
+    "RN50": _RN50,
+    "RN50-quickgelu": _RN50_quickgelu,
+    "RN101": _RN101,
+    "RN101-quickgelu": _RN101_quickgelu,
+    "RN50x4": _RN50x4,
+    "RN50x16": _RN50x16,
+    "RN50x64": _RN50x64,
+    "ViT-B-32": _VITB32,
+    "ViT-B-32-quickgelu": _VITB32_quickgelu,
+    "ViT-B-16": _VITB16,
+    "ViT-B-16-plus-240": _VITB16_PLUS_240,
+    "ViT-L-14": _VITL14,
+    "ViT-L-14-336": _VITL14_336,
+    }
+    '''
+    model_clip, _, preprocess = open_clip.create_model_and_transforms(
+        'ViT-B-16', pretrained='laion400m_e32')
+    model_clip = model_clip.to(device).eval()
+    # Get Anchor Image
+    anchor_i = 1
+    topk = 6-1, # _
+    anchor_img = get_image(args, data_path.image_files[anchor_i])
+    image_ = anchor_img.view(
+        [1, 3, args.image_size, args.image_size]).to(device)
+    with torch.no_grad():
+        anchor_features = model_clip.encode_image(image_)
+
+    # If setting args.dataloader_patches ==False
+    images_features = []
+    for img_ in tqdm(val_dl):
+        with torch.no_grad():
+            out_ = model_clip.encode_image(img_.to(device))
+            images_features.append(out_)
+
+    images_features = torch.cat(images_features, dim=0)
+    print(f"This is image features shape: {images_features.shape}")
+
+    # Compute Similartiy
+    similarity = anchor_features@images_features.T
+    print(f"This is similarity shape: {similarity.shape}")
+    score, idx = similarity.topk(k=topk, dim=1)
+    score = score.cpu().numpy()[0][1:]
+    idx = idx.cpu().numpy()[0][1:]
+    plotting_image_retrieval(args, anchor_img.permute(
+        1, 2, 0), score, idx, data_path)
 
 
 
+    #sim = einsum('b d, j d ->  j b', images_features, anchor_features)
     # ******************************************************************************
     # 5.1 Patch-level Similarity
     # ******************************************************************************
-    
-    
-    anchor_i = 1
-    anchor_img = get_image(args, data_path.image_files[anchor_i])
-    image_ = anchor_img.view([1, 3, args.image_size, args.image_size]).to(device)
-    patches_img = model.patch_embed(image_)
-    print(f"patches_img shape: {patches_img.shape}")
 
-    with torch.no_grad():
-        anchor_embedding = model_seq(patches_img.to(device))
-    print(f"Single image embedding shape: {anchor_embedding.shape}")
+    # anchor_i = 1
+    # anchor_img = get_image(args, data_path.image_files[anchor_i])
+    # image_ = anchor_img.view(
+    #     [1, 3, args.image_size, args.image_size]).to(device)
+    # patches_img = model.patch_embed(image_)
+    # print(f"patches_img shape: {patches_img.shape}")
 
-    rand_img = 2
-    reference_image = get_image(
-        args, image_example_path=data_path.image_files[rand_img])
-    reference_image = reference_image.view([1, 3, args.image_size, args.image_size]).to(device)
-    patches_ref_img = model.patch_embed(image_)
-    with torch.no_grad():
-        reference_embedding = model_seq(patches_ref_img.to(device))
-    print(f"Reference image embedding shape: {reference_embedding.shape}")
-    
-    topk = 10
-    patch_position=10
-    similarity = patches_similarity(
-        anchor_embedding, reference_embedding, topk=topk, patch_position=patch_position)
-    # ----------------------------------------------------------------------------------------------
-    # Using Cross Attention model
-    cross_attention = vits.CrossAttention(reference_embedding, )
-    anchor_embedding = anchor_embedding.view([196, 1024])
-    query = reference_embedding.view([196, 1024])
-    key = anchor_embedding[patch_position, :].unsqueeze(0)
-    value = anchor_embedding[patch_position, :].unsqueeze(0)
-    print(f"query shape: {query.shape}")
-    print(f"key shape: {key.shape}")
-    with torch.no_grad():
-        cross_att_out, similarity = cross_attention(query, key, value)
-    print(f"cross_att_out shape: {cross_att_out.shape}")
-    print(f"similarity shape: {similarity.shape}")
+    # with torch.no_grad():
+    #     anchor_embedding = model_seq(patches_img.to(device))
+    # print(f"Single image embedding shape: {anchor_embedding.shape}")
 
-    score, idx = cross_att_out.topk(k=10, dim=1)
-    score_2, idx_2 = similarity.topk(k=1, dim=1)
-    idx = idx.cpu().numpy()
-    print(idx)
-    print(idx_2)
+    # rand_img = 2
+    # reference_image = get_image(
+    #     args, image_example_path=data_path.image_files[rand_img])
+    # reference_image = reference_image.view(
+    #     [1, 3, args.image_size, args.image_size]).to(device)
+    # patches_ref_img = model.patch_embed(image_)
+    # with torch.no_grad():
+    #     reference_embedding = model_seq(patches_ref_img.to(device))
+    # print(f"Reference image embedding shape: {reference_embedding.shape}")
 
-    for im1, im2, in zip(image_, reference_image):
+    # topk = 10
+    # patch_position = 10
+    # similarity = patches_similarity(
+    #     anchor_embedding, reference_embedding, topk=topk, patch_position=patch_position)
+    # # ----------------------------------------------------------------------------------------------
+    # # Using Cross Attention model
+    # cross_attention = vits.CrossAttention(reference_embedding, )
+    # anchor_embedding = anchor_embedding.view([196, 1024])
+    # query = reference_embedding.view([196, 1024])
+    # key = anchor_embedding[patch_position, :].unsqueeze(0)
+    # value = anchor_embedding[patch_position, :].unsqueeze(0)
+    # print(f"query shape: {query.shape}")
+    # print(f"key shape: {key.shape}")
+    # with torch.no_grad():
+    #     cross_att_out, similarity = cross_attention(query, key, value)
+    # print(f"cross_att_out shape: {cross_att_out.shape}")
+    # print(f"similarity shape: {similarity.shape}")
 
-        i1 = torchvision.utils.make_grid(im1, normalize=True, scale_each=True)
-        i1 = Image.fromarray(i1.mul(255).add_(0.5).clamp_(
-            0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy())
-        i2 = torchvision.utils.make_grid(im2, normalize=True, scale_each=True)
-        i2 = Image.fromarray(i2.mul(255).add_(0.5).clamp_(
-            0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy())
- 
- 
-        full_img = Image.new('RGB', (args.image_size * 2, args.image_size))
-        draw_img1 = ImageDraw.Draw(i1)
-        draw_img2 = ImageDraw.Draw(i2)
-
-
-        for box2 in idx[0]:
-            shape=()
-            draw_img2.rectangle(shape, fill=(200, 100, 0, 127))
-
-        full_img = Image.new('RGB', (args.image_size * 2, args.image_size))
-        draw = ImageDraw.Draw(full_img)
-        full_img.paste(i1, (0, 0))
-        full_img.paste(i2, (args.image_size, 0))
-        full_img.save(args.save_dir + "patch_matching.png")
-
+    # score, idx = cross_att_out.topk(k=10, dim=1)
+    # score_2, idx_2 = similarity.topk(k=1, dim=1)
+    # idx = idx.cpu().numpy()
+    # print(idx)
+    # print(idx_2)
 
     # ******************************************************************************
     # 5.2 Sparse Correspondence between two embedding (based on cosine similarity)
     # ******************************************************************************
-    
+
     # # data_path.image_files[anchor_i]
     # anchor_img = get_image(args,)
     # image_ = anchor_img.view(

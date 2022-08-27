@@ -24,6 +24,7 @@ from torch import nn, einsum
 from utils import trunc_normal_
 from einops import rearrange, repeat
 
+
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     if drop_prob == 0. or not training:
         return x
