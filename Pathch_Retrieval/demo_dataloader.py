@@ -73,9 +73,9 @@ class ImageOriginalData(Dataset):
         else:
             return self.resize(img)
 
-class normal_dataloader:
+class all_images_in_1_folder_dataloader:
     '''
-    This normal dataloader loading dataset with *ONLY One Folder* 
+    This normal dataloader supports for dataset with all images containing in *ONLY One Folder* 
 
     '''
 

@@ -9,7 +9,6 @@
 # copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
 # Software, and to permit persons to whom the Software is furnished to do so,
 # subject to the following conditions:
-
 # The above copyright notice and this permission notice shall be included in all copies
 # or substantial portions of the Software.
 
@@ -21,7 +20,7 @@ import math
 import torchvision
 import sys
 from utils import load_pretrained_weights
-from demo_dataloader import normal_dataloader
+from demo_dataloader import all_images_in_1_folder_dataloader
 from visual_attention_map import attention_retrieving, attention_map_color, attention_heatmap
 import torch.nn as nn
 import vision_transformer as vits
@@ -35,14 +34,15 @@ import matplotlib.pyplot as plt
 from IPython.display import display
 from typing import Any, Callable, List, Tuple, Optional
 from torchvision.transforms.functional import to_pil_image
-from helper_functions import plotting_image_retrieval
+from helper_functions import plotting_image_retrieval, visualization_patches_image, seanborn_heatmap_color, plotting_patch_level_retrieval
 # Get the torch hub model
 from hubvits_models import dino_vitb8, dino_vitb16, dino_vits8, dino_vits16
 
-# Visualization and Plot the Image
-# from torchvision.utils import Image, ImageDraw
 
+# ********************************************************
+# Directly Using Open-Clip built model
 import open_clip
+
 # ******************************************************
 # Arguments needed to load model checkpoint
 # ******************************************************
@@ -54,12 +54,13 @@ torchvision_archs = sorted(name for name in torchvision_models.__dict__
 
 def get_args_parser():
 
-    parser = argparse.ArgumentParser('Patch-Match Retrieval', add_help=False)
+    parser = argparse.ArgumentParser(
+        'Image & Patch-level Retrieval', add_help=False)
 
     # ********************************************************
     # Model parameters
     # ********************************************************
-    parser.add_argument('--arch', default='vit_L_16_ibot', type=str, choices=['vit_tiny', 'vit_small', 'vit_base', 'vit_base_ibot_16', 'vit_L_16_ibot']
+    parser.add_argument('--arch', default='vit_base', type=str, choices=['vit_tiny', 'vit_small', 'vit_base', 'vit_base_ibot_16', 'vit_L_16_ibot']
                         + torchvision_archs +
                         torch.hub.list("facebookresearch/xcit:main"),
                         help="""Name of architecture to train. For quick experiments with ViTs,
@@ -100,6 +101,10 @@ def get_args_parser():
     parser.add_argument("--local_rank", default=0, type=int,
                         help="Please ignore and do not set this argument.")
     return parser
+
+# ******************************************************
+# Loading ViTs model and weights
+# ******************************************************
 
 
 def load_model(args):
@@ -147,8 +152,8 @@ def batch_images(args):
     5: transform_ImageNet --> Normalize the image with ImageNet (mean, std)
 
     '''
-    val_dataset = normal_dataloader(image_path=args.image_path, img_size=args.image_size,
-                                    image_format="*.jpg", subset_data=args.subset_data, transform_ImageNet=True)
+    val_dataset = all_images_in_1_folder_dataloader(image_path=args.image_path, img_size=args.image_size,
+                                                    image_format="*.jpg", subset_data=args.subset_data, transform_ImageNet=True)
 
     if args.dataloader_patches:
         print("Loading Patches dataloader")
@@ -163,7 +168,7 @@ def batch_images(args):
 # Get a Single image
 
 
-def get_image(args, image_example_path=None):
+def get_image(args, image_example_path=None, only_resize=False):
     '''
     Args:  
     args.image_path: This provides the image in your machine or other source
@@ -194,12 +199,16 @@ def get_image(args, image_example_path=None):
         else:
             print(f"Provided image path {args.image_path} is non valid.")
             sys.exit(1)
-
-    transform = pth_transforms.Compose([
-        pth_transforms.Resize((args.image_size, args.image_size)),
-        pth_transforms.ToTensor(),
-        pth_transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-    ])
+    if only_resize:
+        transform = pth_transforms.Compose([
+            pth_transforms.Resize((args.image_size, args.image_size)), pth_transforms.ToTensor(), ])
+    else:
+        transform = pth_transforms.Compose([
+            pth_transforms.Resize((args.image_size, args.image_size)),
+            pth_transforms.ToTensor(),
+            pth_transforms.Normalize(
+                (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
     img_tensor = transform(img)
 
     return img_tensor
@@ -215,96 +224,22 @@ def patches_similarity(anchor_embedding, reference_embedding, normalize=True, pa
     similarity of each patches between anchor and reference image [patches, patches]
     '''
 
-    # Reference from SelfPatch paper
-    # local_idx = get_local_index(anchor_embedding.size(1), k_size=3)
-    # print(anchor_embedding.size(1))
-    # print(f"local_idx shape a {local_idx.shape}")
-    # anchor_embedding_=anchor_embedding[:,local_idx]
-    # print(anchor_embedding_.shape)
-    # similarity=anchor_embedding[:,local_idx]@anchor_embedding.unsqueeze(2).transpose(-2,-1)
-    # print(similarity.shape)
-    # top_idx = similarity.squeeze().topk(k=topk,dim=-1)[1].view(-1,topk,1)
     if normalize:
         anchor_embedding = nn.functional.normalize(
             anchor_embedding, p=2, dim=-1)
         reference_embedding = nn.functional.normalize(
             reference_embedding, p=2, dim=-1)
-    print(f"this is anchor_embedding.shape {anchor_embedding.shape}")
-
-    # Reference from Ibot paper
-    #similarity= ancher_patch.cpu().numpy() @ other_patches.cpu().numpy().T
-    #similarity = torch.bmm(anchor_embedding, reference_embedding.permute(0, 2, 1))
-    #score, value = similarity.max(-1)
 
     reference_embedding = reference_embedding.view(
         [reference_embedding.size(1), reference_embedding.size(2)])
     anchor_embedding = anchor_embedding.view(
         [anchor_embedding.size(1), anchor_embedding.size(2)])[patch_position, :]
-    print(f"this is reference_embedding.shape {reference_embedding.shape}")
-    print(f"this is anchor_embedding.shape {anchor_embedding.shape}")
+
     similarity = reference_embedding @ anchor_embedding.T
-    #similarity= similarity
     idx = torch.argsort(-similarity, dim=0).cpu().numpy()
-    #print(f" this is the top k similarity {topk}, ranks.shape: {ranks.shape}")
     print(f"this is idx {idx.shape}")
 
     return idx
-
-
-def image_retrieval_topk(embedding: torch.FloatTensor, i: int, topk=4, normalize=True):
-    if normalize:
-        #embedding = embedding.norm(dim=-1, keepdim=True)
-        embedding = nn.functional.normalize(embedding, p=2, dim=1)
-        print("All image embedding normalized shape {}".format(embedding.shape))
-
-    # print(f"This is all images embedding shape: {embedding.shape}")
-    print(f"This is image I embedding position shape: {embedding[i,:].shape}")
-    similarity = (embedding @ embedding[i, :].T)  # .softmax(dim=-1)
-    print(f"Similarity method 1: {similarity.shape}")
-    # similarity= torch.mm(embedding , embedding[i, :].T)
-    # print(f"Similarity method 2: {similarity.shape}")
-    idx = torch.argsort(-similarity, dim=0).cpu().numpy()
-    # scores, idx = similarity.cpu().topk(topk,)  # dim=-1
-
-    print("this is idx value:", idx.shape)
-    return idx
-
-
-def image_retrieval_topk_extra(source_data_embedding: torch.FloatTensor,
-                               anchor_image_embedding: torch.FloatTensor,
-                               topk=4, normalize=True):
-    if normalize:
-        source_data_embedding = nn.functional.normalize(
-            source_data_embedding, p=2, dim=1)
-        anchor_image_embedding = nn.functional.normalize(
-            anchor_image_embedding, p=2, dim=1)
-        print("All image embedding normalized shape {}".format(
-            source_data_embedding.shape))
-
-    # print(f"This is all images embedding shape: {source_data_embedding.shape}")
-    # print(f"This is anchor image shape: {anchor_image_embedding.shape}")
-    anchor_image_embedding = anchor_image_embedding.flatten()
-    print(anchor_image_embedding.shape)
-    source_data_embedding = source_data_embedding.flatten(start_dim=1)
-    print(source_data_embedding.shape)
-    #similarity =   source_data_embedding@anchor_image_embedding.T
-    # source_embedding=source_data_embedding.permute(2, 0, 1)
-    # print(f"source_embedding shape: {source_embedding.shape}")
-    # anchor_embedding=anchor_image_embedding.permute(2, 0, 1)
-    # print(f"anchor_embedding shape: {anchor_embedding.shape}")
-    #similarity= torch.bmm(source_embedding,anchor_embedding )
-    #print(f"similarity use method 1: {similarity.shape}")
-
-    #similarity = torch.mm(source_data_embedding @ anchor_image_embedding.T)
-    #print(f"similarity use method 2: {similarity.shape}")
-    #scores, idx = similarity.topk(topk, dim=0)
-    similarity = (source_data_embedding @ anchor_image_embedding.T)
-    print(f"similarity use method 3: {similarity.shape}")
-    scores, idx = similarity.cpu().topk(topk, sorted=True, dim=-1)
-
-    print("this is idx value:", idx.shape)
-    print("This is score value", scores.shape)
-    return scores.cpu().numpy(), idx.cpu().numpy()
 
 
 if __name__ == '__main__':
@@ -427,8 +362,9 @@ if __name__ == '__main__':
     # plt.imshow(final_pic)
 
     # ----------------------------------------------------------------------------------------------
-    # 5.0 --- Image Retrieval (Anchor Images and batch Random Images) Using CLIP pretrain backbone
+    # 5.0 --- Image Retrieval Top K (Anchor Images and batch Random Images) Using CLIP pretrain backbone
     # ----------------------------------------------------------------------------------------------
+    ''' Attention different CLIP model supports different input size --plus for different output size'''
     '''
     _PRETRAINED = {
     "RN50": _RN50,
@@ -448,13 +384,13 @@ if __name__ == '__main__':
     '''
     model_clip, _, preprocess = open_clip.create_model_and_transforms(
         'ViT-B-16', pretrained='laion400m_e32')
-    model_clip = model_clip.to(device).eval()
-    # Get Anchor Image
-    anchor_i = 1
-    topk = 6-1, # _
+    model_clip = model_clip.to(device).eval() # Setting model in inference mode
+
+    ## Choosing Anchor Query image and its embedding.
+    anchor_i = 60 # Select from Demo dataset
+    topk = 11 # -1 Becuz of Top K results contains anchor_i image
     anchor_img = get_image(args, data_path.image_files[anchor_i])
-    image_ = anchor_img.view(
-        [1, 3, args.image_size, args.image_size]).to(device)
+    image_ = anchor_img.view([1, 3, args.image_size, args.image_size]).to(device)
     with torch.no_grad():
         anchor_features = model_clip.encode_image(image_)
 
@@ -464,71 +400,125 @@ if __name__ == '__main__':
         with torch.no_grad():
             out_ = model_clip.encode_image(img_.to(device))
             images_features.append(out_)
-
     images_features = torch.cat(images_features, dim=0)
-    print(f"This is image features shape: {images_features.shape}")
+    print(f"All Demo Images embedding shape: {images_features.shape}")
 
-    # Compute Similartiy
+    # Compute Similartiy (Query Image and all Demo Images)
     similarity = anchor_features@images_features.T
     print(f"This is similarity shape: {similarity.shape}")
     score, idx = similarity.topk(k=topk, dim=1)
     score = score.cpu().numpy()[0][1:]
     idx = idx.cpu().numpy()[0][1:]
-    plotting_image_retrieval(args, anchor_img.permute(
-        1, 2, 0), score, idx, data_path)
+    ## Showing Image Retrieval Results
+    # plotting_image_retrieval(args, anchor_img.permute(1, 2, 0), score, idx, data_path)
 
-
-
-    #sim = einsum('b d, j d ->  j b', images_features, anchor_features)
     # ******************************************************************************
-    # 5.1 Patch-level Similarity
+    # 5.1 Patch-level Similarity One To One -
     # ******************************************************************************
-
-    # anchor_i = 1
-    # anchor_img = get_image(args, data_path.image_files[anchor_i])
-    # image_ = anchor_img.view(
+    # Choosing Anchor Query image and dividing image into patches.
+    '''Attention the Colo heatmap range support for Image Size 224, 256 /patch-8, patch-16'''
+    # anchor_i = 20  # Select from Demo dataset
+    # topk = 2
+    # query_img_visualizing = get_image(
+    #     args, data_path.image_files[anchor_i], only_resize=True)
+    # query_img_ = get_image(args, data_path.image_files[anchor_i])
+    # query_img_ = query_img_.view(
     #     [1, 3, args.image_size, args.image_size]).to(device)
-    # patches_img = model.patch_embed(image_)
-    # print(f"patches_img shape: {patches_img.shape}")
+    # query_img = model.patch_embed(query_img_)
 
-    # with torch.no_grad():
-    #     anchor_embedding = model_seq(patches_img.to(device))
-    # print(f"Single image embedding shape: {anchor_embedding.shape}")
-
-    # rand_img = 2
+    # # Choosing Reference Patch-level similarity image and dividing image into patches.
+    # rand_img = 10  # Select from Demo dataset
     # reference_image = get_image(
     #     args, image_example_path=data_path.image_files[rand_img])
     # reference_image = reference_image.view(
     #     [1, 3, args.image_size, args.image_size]).to(device)
     # patches_ref_img = model.patch_embed(image_)
+
     # with torch.no_grad():
+    #     query_embedding = model_seq(patches_ref_img.to(device))
     #     reference_embedding = model_seq(patches_ref_img.to(device))
     # print(f"Reference image embedding shape: {reference_embedding.shape}")
+    # # Visualizing Patches Image and Get coordinate of each Patch_id from give args.patch_size
+    # patches_coordinate_ref = visualization_patches_image(args, query_img_visualizing, figure_size=(3, 5), my_dpi=200.,
+    #                                                      axis_font_size=4, patch_number_font_size=5, show_image=False)
+    # # Get Heatmap Color array
+    # heatmap_color_ref = seanborn_heatmap_color(
+    #     heat_map_color_array=(255, 255), show_color_map=False, cmap="bwr")
 
-    # topk = 10
-    # patch_position = 10
-    # similarity = patches_similarity(
-    #     anchor_embedding, reference_embedding, topk=topk, patch_position=patch_position)
-    # # ----------------------------------------------------------------------------------------------
-    # # Using Cross Attention model
-    # cross_attention = vits.CrossAttention(reference_embedding, )
-    # anchor_embedding = anchor_embedding.view([196, 1024])
-    # query = reference_embedding.view([196, 1024])
-    # key = anchor_embedding[patch_position, :].unsqueeze(0)
-    # value = anchor_embedding[patch_position, :].unsqueeze(0)
-    # print(f"query shape: {query.shape}")
-    # print(f"key shape: {key.shape}")
-    # with torch.no_grad():
-    #     cross_att_out, similarity = cross_attention(query, key, value)
-    # print(f"cross_att_out shape: {cross_att_out.shape}")
-    # print(f"similarity shape: {similarity.shape}")
+    # # Compute Cosine Similarity (Query Patch with all Reference Patches)
+    # query_patch = [90,91,104,200]
+    # patch_topk=100
+    # idx_3=[]
+    # for query_patch_id in query_patch:
+    #     query_embedding_ = query_embedding.view([query_embedding.size(1), query_embedding.size(2)])[query_patch_id, :]
+    #     reference_patches_ = reference_embedding.view(
+    #         [reference_embedding.size(1), reference_embedding.size(2)])
+    #     similarity = query_embedding_@reference_patches_.T
+    #     score_3, idx_3_ = similarity.topk(patch_topk)
+    #     idx_3_ = idx_3_.cpu().numpy()
+    #     idx_3.append(idx_3_)
+    # if len(idx_3)==1: 
+    #     idx_3=idx_3[0]
+    # # Plotting Query image (Patch_Id) and reference image (Patches_Id)
+    # plotting_patch_level_retrieval(args, query_img=query_img_visualizing, reference_image_id=rand_img, ref_patches_coordinate=patches_coordinate_ref,
+    #                                user_patch_id=query_patch, score=None, idx=idx_3,
+    #                                mask_color=heatmap_color_ref, val_dat=data_path, alpha=0.6, show_image=True, save_name="patch-level-retrieval pair"+str(anchor_i)+str(rand_img))
 
-    # score, idx = cross_att_out.topk(k=10, dim=1)
-    # score_2, idx_2 = similarity.topk(k=1, dim=1)
-    # idx = idx.cpu().numpy()
-    # print(idx)
-    # print(idx_2)
+    # ******************************************************************************
+    # 5.1 Patch-level Similarity One To Many - Must Uncomment 5.0 section above
+    # ******************************************************************************
+    ## Query image further processing
+    '''Attention the Colo heatmap range support for Image Size 224, 256 /patch-8, patch-16'''
+    query_img = model.patch_embed(image_)
+    with torch.no_grad():
+        query_embedding = model_seq(query_img.to(device))
 
+    reference_topk_embedding = []
+    for i in range(len(idx)):
+        image_id=idx[i]
+        reference_image = get_image(
+        args, image_example_path=data_path.image_files[image_id])
+        reference_image = reference_image.view([1, 3, args.image_size, args.image_size]).to(device)
+        patches_ref_img = model.patch_embed(image_)
+        with torch.no_grad():
+            reference_embedding = model_seq(patches_ref_img.to(device))
+            reference_topk_embedding.append(reference_embedding)
+    reference_topk_embedding = torch.cat(reference_topk_embedding, dim=0)
+    print(f"Reference image embedding shape: {reference_topk_embedding.shape}")
+
+    query_img_visualizing = get_image(
+            args, data_path.image_files[anchor_i], only_resize=True)
+    # Visualizing Patches Image and Get coordinate of each Patch_id from give args.patch_size
+    patches_coordinate_ref = visualization_patches_image(args, query_img_visualizing, figure_size=(3, 5), my_dpi=200.,
+                                                         axis_font_size=4, patch_number_font_size=5, show_image=False)
+    # Get Heatmap Color array
+    heatmap_color_ref = seanborn_heatmap_color(
+        heat_map_color_array=(255, 255), show_color_map=False, cmap="bwr")
+
+    patch_topk=2
+    ## Compute Cosine Similarity Pair of Query Patch with all Reference Patches
+    for i in range(reference_topk_embedding.size(0)):
+        reference_patches_ = reference_topk_embedding[i, :]
+        print(f"Reference image embedding shape: {reference_embedding.shape}")
+        #reference_patches_=reference_embedding.view([reference_embedding.size(1), reference_embedding.size(2)])
+
+        query_patch = [90,91,104,105]
+        idx_3=[]
+        for query_patch_id in query_patch:
+            query_embedding_ = query_embedding.view([query_embedding.size(1), query_embedding.size(2)])[query_patch_id, :]
+            similarity = query_embedding_@reference_patches_.T
+            score_3, idx_3_ = similarity.topk(patch_topk)
+            idx_3_ = idx_3_.cpu().numpy()
+            idx_3.append(idx_3_)
+        if len(idx_3)==1: 
+            idx_3=idx_3[0]
+        # Plotting Query image (Patch_Id) and reference image (Patches_Id)
+        plotting_patch_level_retrieval(args, query_img=query_img_visualizing, reference_image_id=idx[i], ref_patches_coordinate=patches_coordinate_ref,
+                                       user_patch_id=query_patch, score=None, idx=idx_3,
+                                       mask_color=heatmap_color_ref, val_dat=data_path, alpha=0.6, show_image=True, save_name="patch_level_retrieval_pair"+str(anchor_i)+str(i))
+
+
+    # Plotting Query image (Patch_Id) and reference image (Patches_Id) for each Pair
     # ******************************************************************************
     # 5.2 Sparse Correspondence between two embedding (based on cosine similarity)
     # ******************************************************************************
@@ -583,7 +573,6 @@ if __name__ == '__main__':
     #     with torch.no_grad():
     #         reference_embedding = model_seq(patches_ref_img.to(device))
     #     print(f"Reference image embedding shape: {reference_embedding.shape}")
-
     #     score, index = patches_similarity(anchor_embedding, reference_embedding)
     #     num_head=attentions.size(1)
     #     topk_ = 5
