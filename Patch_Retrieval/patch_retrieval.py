@@ -492,9 +492,7 @@ if __name__ == '__main__':
     patches_coordinate_ref = visualization_patches_image(args, query_img_visualizing, figure_size=(3, 5), my_dpi=200.,
                                                          axis_font_size=4, patch_number_font_size=5, show_image=False)
     # Get Heatmap Color array
-    heatmap_color_ref = seanborn_heatmap_color(
-        heat_map_color_array=(255, 255), show_color_map=False, cmap="bwr")
-
+    heatmap_color_ref = seanborn_heatmap_color(heat_map_color_array=(255, 255), show_color_map=False, cmap="bwr")
     patch_topk=2
     ## Compute Cosine Similarity Pair of Query Patch with all Reference Patches
     for i in range(reference_topk_embedding.size(0)):
