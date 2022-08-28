@@ -11,7 +11,7 @@
 
 - ViTs model to extract Image embedding representation 
 
-+ Retrieving Top-K similarity between the text-queries and data images-embedding
++ Retrieving Top-K similarity between the text-queries & data images-embedding
 
 
 2. Image-to-Image Retrieval 
@@ -20,4 +20,13 @@
 
 - ViTs model extract all other images embedding representation 
 
-+ Retrieving Top-K similarity between the Image-queries and data images-embedding
++ Retrieving Top-K similarity between the Image-queries & data images-embedding
+
+--------------------------------------------------------------------------------------------------------------
+## Section 2 Patch-Level Retrieval 
+
+- ViTs model extract Patch-Queries embedding representation 
+
+- ViTs model extract all other images Patches embedding representation 
+
++ Retrieving Top-K similarity between the Patch-queries & other Patches-embedding
