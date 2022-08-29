@@ -30,3 +30,16 @@
 - ViTs model extract all other images Patches embedding representation 
 
 + Retrieving Top-K similarity between the Patch-queries & other Patches-embedding
+--------------------------------------------------------------------------------------------------------------
+## Section 3 Image Segmentation 
+
+1. CoCo dataset segmentation
+
+- ResNet50 pretraining with Heuristic Attention Representation Learning for Self-Supervised Pretraining
+- Fine-tune MaskRCNN with ResNet50 backbone using coco dataset
++ Segment objects in an image
+
+2. Model feature attention part
+
+- ResNet50 pretraining with Heuristic Attention Representation Learning for Self-Supervised Pretraining
++ Get the attention map from ResNet50.
