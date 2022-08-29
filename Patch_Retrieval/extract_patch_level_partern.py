@@ -77,7 +77,7 @@ def get_args_parser():
     # ********************************************************
     # Setting the Saving Experiments Result
     # ********************************************************
-    parser.add_argument('--image_path', default="/home/rick/offline_finetune/birdsnap__/dataset/", type=str,
+    parser.add_argument('--image_path', default="/data/downstream_datasets/coco/birdsnap__/dataset/train/", type=str,
                         help='Please specify path to the ImageNet training data.')
     parser.add_argument('--dataloader_patches', default=False, type=bool,
                         help='Decided loading dataloader with or without Patches image')
@@ -88,9 +88,9 @@ def get_args_parser():
     parser.add_argument('--image_size', default=224, type=int,
                         help='Image_size resizes standard for all input images.')
 
-    parser.add_argument('--output_dir', default="/home/rick/pretrained_weight/DINO_Weight/",
+    parser.add_argument('--output_dir', default="/data/downstream_tasks/DINO_weights/",
                         type=str, help='Path to save logs and checkpoints.')
-    parser.add_argument('--save_dir', default="/home/rick/Visualization/DINO_1/",
+    parser.add_argument('--save_dir', default="/data/downstream_tasks/visualization/Dino/",
                         type=str, help='Path to save Attention map out.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
     parser.add_argument('--num_workers', default=10, type=int,
@@ -167,9 +167,9 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
             img, idx, _ = data
             idx = idx.to(device)
             imgs = img.to(device)
-            # print(f"Batch image shape {imgs.shape}")
-            # print(f"Batch idx shape {idx.shape}")
-            # print(f"remove {_.shape[0]} images")
+            print(f"Batch image shape {imgs.shape}")
+            print(f"Batch idx shape {idx.shape}")
+            print(f"remove {_.shape[0]} images")
             # for runing inference with torch.no_grad()
             # images_patches=model.patch_embed(imgs)
             embedding = model(imgs)[1].contiguous(
@@ -217,8 +217,8 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
                 values, instance_id = torch.topk(
                     values, k=args.topk*2, )  # dim=-1
                 spatial_id = spatial_id[instance_id]
-                npatch = args.img_size//args.patch_size
-                height_id = spatial_id // npatch
+                npatch = args.image_size//args.patch_size
+                height_id = torch.div(spatial_id, npatch, rounding_mode='trunc') #spatial_id // npatch
                 width_id = spatial_id % npatch
                 indices = torch.stack(
                     (instance_id, height_id, width_id), dim=-1)
@@ -229,8 +229,8 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
             patterns[i.item()] = indices
 
         transforms_image = transforms.Compose([
-            transforms.Resize(args.img_size // 7 * 8),
-            transforms.CenterCrop(args.img_size),
+            transforms.Resize(args.image_size // 7 * 8),
+            transforms.CenterCrop(args.image_size),
         ])
 
         train_dataset = ImageFolderInstance(
@@ -252,8 +252,9 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
             for idx in idxs.numpy():
                 if args.type == 'patch':
 
-                    _, raw, _ = train_dataset[idx[0]]
-                    print(f"raw shape {raw.shape}")
+                    raw, _, _ = train_dataset[idx[0]]
+                    
+                    #print(f"raw shape {raw.shape}")
 
                     data = raw.crop((
                         (idx[2] - args.patch_window // 2) * unit,
