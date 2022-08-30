@@ -1,3 +1,4 @@
+from random import shuffle
 import torch 
 from typing import Any, Callable, List, Tuple
 
@@ -7,6 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import io, transforms
 from sklearn.model_selection import train_test_split
 from PIL import Image
+from torchvision.datasets import ImageFolder
 
 # ******************************************************
 # Inference DataLoader
@@ -119,3 +121,37 @@ class all_images_in_1_folder_dataloader:
         )
         return val_dl
 
+
+class ImageFolderInstance(ImageFolder):
+    def __getitem__(self, index):
+        img, target = super(ImageFolderInstance, self).__getitem__(index)
+        return img, target, index
+
+class multiple_folders_dataloader(ImageFolder): 
+    def __init__(self, args, transform_ImageNet=None):
+        super(multiple_folders_dataloader, self).__init__(args.img_path, transform_ImageNet)
+    
+        self.img_size = args.img_size
+        self.img_path=args.img_path
+        self.batch_size = args.batch_size
+        if transform_ImageNet is not None:
+            self.transform_ImageNet = transform_ImageNet
+        else: 
+            self.transform_ImageNet = transforms.Compose([
+                transforms.Resize((args.img_size, args.img_size)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            ])
+    
+    def val_dataloader(self):
+        val_data = ImageFolderInstance(self.img_path, self.transform_ImageNet)
+        val_dl = DataLoader(
+            val_data,
+            self.batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=4,
+            pin_memory=True,
+            #collate_fn= collatesingle_img()
+        )
+        return val_dl
