@@ -14,9 +14,9 @@ import vision_transformer as vits
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from demo_dataloader import all_images_in_1_folder_dataloader, ImageFolderInstance
-from patch_retrieval import load_model, batch_images
+from patch_retrieval import load_model, batch_images, get_image
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-
+from helper_functions import visualization_patches_image
 torchvision_archs = sorted(name for name in torchvision_models.__dict__
                            if name.islower() and not name.startswith("__")
                            and callable(torchvision_models.__dict__[name]))
@@ -81,9 +81,9 @@ def get_args_parser():
                         help='Please specify path to the ImageNet training data.')
     parser.add_argument('--dataloader_patches', default=False, type=bool,
                         help='Decided loading dataloader with or without Patches image')
-    parser.add_argument('--subset_data', default=0.1, type=float,
+    parser.add_argument('--subset_data', default=0.5, type=float,
                         help='How many percentage of your Demo Dataset you want to Use.')
-    parser.add_argument('--single_img_path', default="/home/rick/offline_finetune/Pets/images/american_bulldog_72.jpg", type=str,
+    parser.add_argument('--single_img_path', default="/data/downstream_datasets/coco/birdsnap__/dataset/train/Acadian_Flycatcher/534158.jpg", type=str,
                         help='Please specify path to the ImageNet training data.')
     parser.add_argument('--image_size', default=224, type=int,
                         help='Image_size resizes standard for all input images.')
@@ -167,9 +167,9 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
             img, idx, _ = data
             idx = idx.to(device)
             imgs = img.to(device)
-            print(f"Batch image shape {imgs.shape}")
-            print(f"Batch idx shape {idx.shape}")
-            print(f"remove {_.shape[0]} images")
+            # print(f"Batch image shape {imgs.shape}")
+            # print(f"Batch idx shape {idx.shape}")
+            # print(f"remove {_.shape[0]} images")
             # for runing inference with torch.no_grad()
             # images_patches=model.patch_embed(imgs)
             embedding = model(imgs)[1].contiguous(
@@ -208,6 +208,7 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
     if args.local_rank == 0:
         patterns = {}
         for i in num_per_cluster.topk(args.num_pic_show)[1]:
+            
             mask = memory_bank[..., 1] == i
             if args.type == 'patch':
                 # Retrieving the image-level embedding
@@ -237,6 +238,7 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
             args.image_path, transform=transforms_image)
 
         for nrank, (cluster, idxs) in enumerate(patterns.items()):
+            breakpoint()
             size = math.ceil(args.topk**0.5)  # 6
             unit = args.patch_size if args.type == 'patch' else args.img_size  # 16 /224
             # how many patches for visualization
@@ -302,4 +304,10 @@ def main(args, ref_patches_coordinate=None, user_select_patch_id=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
-    main(args)
+    # Visualizing Patches Image and Get coordinate of each Patch_id from give args.patch_size
+    query_img_visualizing = get_image(
+            args,)
+    patches_coordinate_ref = visualization_patches_image(args, query_img_visualizing, figure_size=(3, 5), my_dpi=200.,
+                                                         axis_font_size=4, patch_number_font_size=5, show_image=False)
+    user_select_patch_id=[90,104]
+    main(args, ref_patches_coordinate=patches_coordinate_ref,user_select_patch_id=user_select_patch_id)
