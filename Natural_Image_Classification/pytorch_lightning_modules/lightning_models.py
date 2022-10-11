@@ -1,3 +1,25 @@
+from typing import Optional, Sequence
+from sklearn.utils import shuffle
+import torch
+import os, shutil
+import torchvision
+import pytorch_lightning as pl
+import torch.nn.functional as F
+from pathlib import Path
+from torch import nn
+from torch.optim.lr_scheduler import MultiStepLR, ReduceLROnPlateau
+from torch.optim import SGD
+from torchmetrics import Accuracy
+from torchvision import transforms
+from torchvision.models import resnet50
+from torchvision.transforms.functional import InterpolationMode
+from torchvision.datasets.utils import download_and_extract_archive
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
+from pytorch_lightning.callbacks.finetuning import BaseFinetuning
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning import Trainer
+
 
 class DownstreamLinearModule_sweep(pl.LightningModule):
     def __init__(
@@ -51,8 +73,6 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
    
         # linear model
         self.classifier = nn.Linear(2048, self.num_classes)
-
- 
     
     def forward(self, x):
         ##----Method 1 --------
@@ -68,7 +88,6 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
             with torch.no_grad():
                 representations = self.feature_extractor(x).flatten(1)
         #representations=self.feature_extractor(x).flatten(1)
-            
         x  = self.classifier(representations)
         #x=F.softmax(x, dim=1)
         return x
