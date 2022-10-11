@@ -89,7 +89,6 @@ class DownstreamDataloader(pl.LightningDataModule):
         if self.download:
             download_and_extract_archive(self.dataset_urls[self.dataset_name], self.root_dir)
    
-
         ## Download dataset for the first time
         # if self.dataset_name== "Caltech101": 
         #     print('download Caltech101')
@@ -282,10 +281,8 @@ class DownstreamDataloader(pl.LightningDataModule):
                 dataset = self.create_dataset(datapath.joinpath(mode), self.dataset_transforms[task][mode])
                 return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
             
-
     def create_dataset(self, root_path, transform):
-        return ImageFolder(root_path, transform)
-        
+        return ImageFolder(root_path, transform)    
 
     def train_dataloader(self):
         # if self.dataset_name=="Place365" or "Caltech101" or "Birdsnap":
@@ -366,6 +363,7 @@ class DownstreamDataloader(pl.LightningDataModule):
                 transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.228, 0.224, 0.225))
                 ]
             )
+    
     @property
     def finetune_val_transforms(self):
         return transforms.Compose(
