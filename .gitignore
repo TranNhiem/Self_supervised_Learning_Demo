@@ -20,3 +20,18 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# saved models
+*.pt
+*.pth
+*.ckpt
+*.tar
+*.pkl
+*.log
+*.json
+*.wandb
+*.pyc
+wandb/
+wandb*/
+!scripts/**
+

@@ -50,7 +50,7 @@ hyperparameter_default= dict(
 wandb.init(config= hyperparameter_default, 
     name= f"{args.DATASET}, {args.METHOD}", 
     project= "HAPiCLR_Downstream_task", 
-    entity='mlbrl', 
+    entity='tranrick', 
 )
 
 config= wandb.config 

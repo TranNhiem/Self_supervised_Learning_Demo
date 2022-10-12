@@ -65,11 +65,13 @@ class DownstreamDataloader(pl.LightningDataModule):
             
             dataset_name: str, download: bool, 
             
-            task: str, batch_size: int, num_workers: int,
-            
+            task: str,
+            batch_size: int,
+            num_workers: int,
+            root_dir: str ,
             RandAug: bool= False, num_transfs: int= 2, magni_transfs: int =7, 
 
-            root_dir: str = '/img_data',
+        
             ):
 
         super().__init__()
@@ -142,7 +144,7 @@ class DownstreamDataloader(pl.LightningDataModule):
             return Path(self.root_dir)
         else:
             return Path(self.root_dir).joinpath("dataset")
-
+        #return Path(self.root_dir)
 
     @property
     def linear_eval_train_transforms(self):
