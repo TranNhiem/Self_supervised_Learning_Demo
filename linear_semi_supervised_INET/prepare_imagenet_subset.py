@@ -13,7 +13,8 @@ from torchvision import transforms
 ## Function to Create the Subset of ImageNet
 ## ----------------------------------------------------
 
-def split_imagenet_subset(one_per_txt='/code_spec/downstream_tasks/one_per.txt', ten_per_txt='/code_spec/downstream_tasks/ten_per.txt'
+def split_imagenet_subset(one_per_txt='/code_spec/downstream_tasks/one_per.txt', 
+                         ten_per_txt='/code_spec/downstream_tasks/ten_per.txt'
                             , train_path='/img_data/train', one_per_path= '/img_data/one_per/dataset/train', 
                                 ten_per_path= '/img_data/ten_per/dataset/train',):
     ## 
@@ -57,9 +58,8 @@ def split_imagenet_subset(one_per_txt='/code_spec/downstream_tasks/one_per.txt',
                 shutil.copyfile(src_path, dest_path)
 
 ## ----------------------------------------------------
-## Class to Create the Subset of ImageNet
+## Dataloader Module for ImageNet dataset 
 ## ----------------------------------------------------
-
 class DownstreamDataloader(pl.LightningDataModule):
     def __init__(self, 
             
@@ -198,7 +198,6 @@ class DownstreamDataloader(pl.LightningDataModule):
                     transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.228, 0.224, 0.225))
                 ]
             )
-
 
     @property
     def finetune_val_transforms(self):

@@ -7,7 +7,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.plugins import DDPPlugin
 from torchvision.models import resnet50
-from downstream_modules import DownstreamLinearModule_sweep
+from Natural_Image_Classification.pytorch_lightning_modules.lightning_models import DownstreamLinearModule_sweep
 from prepare_imagenet_subset import DownstreamDataloader
 
 

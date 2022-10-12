@@ -5,14 +5,10 @@
 from tkinter import Image
 
 from sklearn.utils import shuffle
-import torch
-import os, shutil
-import torchvision
+
 import pytorch_lightning as pl
 
 from pathlib import Path
-
-
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 from torchvision.datasets.utils import download_and_extract_archive, download_url

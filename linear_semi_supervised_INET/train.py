@@ -6,7 +6,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.plugins import DDPPlugin
 from torchvision.models import resnet50
-from downstream_modules import DownstreamLinearModule
+from Natural_Image_Classification.pytorch_lightning_modules.lightning_models  import DownstreamLinearModule
 from prepare_imagenet_subset import DownstreamDataloader
 
 parser = argparse.ArgumentParser()
@@ -16,7 +16,7 @@ parser.add_argument("-r", "--root_dir", type=str, default="/img_data/one_per", h
 parser.add_argument("-w", "--weight_path", type=str, default='/data/downstream_tasks/HAPiCLR/Classification/mscrl-imagenet-simclr+pixel_level_contrastive_background-dim1024-paperep=99.ckpt', help="SSL Backbone pretrained weight")
 parser.add_argument("-b", "--batch_size",type=int, default=512,  help="batch_size for evaluation")
 parser.add_argument("-d", "--metric",type=str, default="accuracy_1_5_torchmetric", choices=["accuracy_1_5_torchmetric",  "accuracy_1_5", "Mean_average_per_cls"], help="Which metric to use")
-parser.add_argument("-t", "--task", help="linear_eval or finetune")
+parser.add_argument("-t", "--task", choicse=["linear", "finetune"], help="linear_eval or finetune")
 parser.add_argument("-ep", "--epochs", type= int, default =60, help="number of iterations")
 parser.add_argument("-wed", "--weight_decay", type=float, default=5e-7, help="The amount of weight decay to use")
 parser.add_argument("-ra", "--RandAug", type=bool, default=False, help="linear_eval or finetune")
@@ -36,6 +36,14 @@ kwargs = {
     "lr_decay_steps": [30, 55, 75], #[30, 6, 75],
     "num_workers": 20,
     "num_transfs": 2,  
+    "magni_transfs": 5,
+    "batch_size": args.batch_size,
+    "num_workers": 20,
+    "metric": args.metric,
+    "task": args.task,
+    "backbone_weights": args.weight_path, 
+    "RandAug": args.RandAug, 
+    "num_transfs":2,  
     "magni_transfs": 5,
 }
 
