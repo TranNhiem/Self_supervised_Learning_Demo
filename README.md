@@ -43,3 +43,21 @@
 
 - ResNet50 pretraining with Heuristic Attention Representation Learning for Self-Supervised Pretraining
 + Get the attention map from ResNet50.
+
+--------------------------------------------------------------------------------------------------------------
+## Section 4 Natural Image Classification Tasks
+1. Linear evaluation for 12 datasets 
+2. Linear Evaluation with Sweeping the Hyper-parameters
+
+3. Finetuning Pretrained model for 12 datasets 
+2. Finetuning with Sweeping the Hyper-parameters
+
+
+--------------------------------------------------------------------------------------------------------------
+## Section 5 ImageNet Linear Evaluation and Semi-Supervised Learning 
+ 
+1. ImageNet Linear evaluation 
+2. Linear Evaluation with Sweeping the Hyper-parameters
+
+3. ImageNet Semi-Supervised Learning  
+2. Finetuning with 1% & 10% plus Sweeping the Hyper-parameters
