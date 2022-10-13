@@ -22,6 +22,8 @@ parser.add_argument("-wed", "--weight_decay", type=float, default=5e-7, help="Th
 parser.add_argument("-ra", "--RandAug", type=bool, default=False, help="linear_eval or finetune")
 parser.add_argument("-lr", "--Init_lr", type=float, default=1e-2, help="The initial learning rate")
 parser.add_argument("-lr_sch", "--lr_scheduler", type=str, default='step', help="Scheduler lr value during evaluation")
+parser.add_argument("-optim", "--optimizier", type=str, default='sgd',choices=['sgd', 'adamw'], help="Scheduler lr value during evaluation")
+
 args = parser.parse_args()
 
 ## Some Parameters setting depend Machine training
@@ -48,6 +50,7 @@ kwargs = {
     "lr": args.Init_lr,
     "weight_decay": args.weight_decay,
     "scheduler": args.lr_scheduler,
+    "optimizier": args.optimizier,
     # "root_dir": args.root_dir,
 }
 
@@ -59,17 +62,18 @@ RandAug=kwargs['RandAug'],num_transfs=kwargs['num_transfs'], magni_transfs=kwarg
 wandb_logger = WandbLogger(
     # name of the experiment
     #name=f'{METHOD}_semi-supervised_{DATASET}_lr={kwargs["lr"]}_lr_schedu={kwargs["scheduler"]}_wd={kwargs["weight_decay"]}',
-    name=f'{args.METHOD}_{args.task}_{args.DATASET}_lr={kwargs["lr"]}_lr_sched={kwargs["scheduler"]}_wd={kwargs["weight_decay"]}_batch={kwargs["batch_size"]}_optim_{args.optim_type}',
+    name=f'{args.METHOD}_{args.task}_{args.DATASET}_lr={kwargs["lr"]}_lr_sched={kwargs["scheduler"]}_wd={kwargs["weight_decay"]}_batch={kwargs["batch_size"]}_optim_{args.optimizier}',
     project="HAPiCLR_Downstream_Tasks",  # name of the wandb project
     entity='tranrick',
     group=args.DATASET,
     #job_type='semi_supervised',
-    job_type='linear_eval',
+    job_type=args.task,
     offline=False,)
 
+sync_batch=True if kwargs["gpus"] > 1 else False
 wandb_logger.watch(model, log="all", log_freq=50)
 trainer = Trainer(accelerator='gpu', auto_select_gpus=False, gpus=kwargs["gpus"],
-                   logger=wandb_logger, max_epochs=kwargs["epochs"], auto_lr_find=kwargs["auto_lr_find"], strategy="ddp")
+                   logger=wandb_logger, max_epochs=kwargs["epochs"], auto_lr_find=kwargs["auto_lr_find"], strategy="ddp", sync_batchnorm=sync_batch)
 
 if __name__ == '__main__':
     print("start training")
@@ -78,16 +82,6 @@ if __name__ == '__main__':
     trainer.test(model, dataloader)
     print("end training")
 
-# def train():
-#     print("start training")
-#     print(f"Weights : {WEIGHTS}")
-#     # print(train_loader)
-#     # trainer.fit(model, train_loader, val_loader)
-#     # if VAL_PATH != TEST_PATH:
-#         # trainer.validate(model, test_loader)
-#     print("end training")
 
-# if __name__ == '__main__':
-#     train()
 
 

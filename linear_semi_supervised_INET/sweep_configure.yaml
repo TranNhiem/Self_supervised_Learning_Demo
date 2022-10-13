@@ -19,6 +19,7 @@ parameters:
         distribution: log_uniform
         min : -9.21 # exp(-9.21) = 1e-5
         max : -2.00    # exp(-2.00) = 0.14e-1
+    
     weight_decay: 
        # log uniform distribution between exp(min) and exp(max)
         distribution: log_uniform
@@ -26,3 +27,5 @@ parameters:
         max : -9.21    # exp(-9.21) = 0.14e-4
     lr_scheduler: 
         values: ["step", "reduce"]
+    optim_type: 
+        values: ["sgd", "adam", "adamw"]

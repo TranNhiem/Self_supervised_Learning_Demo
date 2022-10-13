@@ -64,7 +64,6 @@ class DownstreamDataloader(pl.LightningDataModule):
     def __init__(self, 
             
             dataset_name: str, download: bool, 
-            
             task: str,
             batch_size: int,
             num_workers: int,
