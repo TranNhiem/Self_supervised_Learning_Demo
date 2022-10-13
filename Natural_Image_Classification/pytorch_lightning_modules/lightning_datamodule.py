@@ -37,7 +37,6 @@ class DownstreamDataloader(pl.LightningDataModule):
                     num_workers: int, 
                 RandAug:bool, num_transfs: int, magni_transfs: int, 
                 concate_dataloader: bool= False, 
-                datafolder_combine: bool= False, 
                 **kwargs):
             
         super().__init__()
@@ -48,7 +47,6 @@ class DownstreamDataloader(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.concate_dataloader= concate_dataloader
-        self.datafolder_combine=datafolder_combine
         self.num_ops= num_transfs
         self.magnitude= magni_transfs
 
@@ -72,181 +70,88 @@ class DownstreamDataloader(pl.LightningDataModule):
         
         ## Train_Loader & Val_Loader for training, Test_Loader for Evaluate and Report
         ## This is Configure from BYOL, SimCLR
-        if self.concate_dataloader:
-            print("ConcatDataset Train and Val")
-            if self.dataset_name == "CIFAR10": 
-                print("Using Cifar Train and Test without Val set")
-                datapath=self.data_path.joinpath('dataset') 
-                # load the dataset
-                train_dataset = datasets.CIFAR10(root=datapath.joinpath(mode), train=True,
-                    download=False, transform=self.dataset_transforms[self.task][mode],)
         
-                dataset = datasets.CIFAR10(datapath.joinpath(mode), train=False,download=False, transform=self.dataset_transforms[self.task][mode],)
-                
-                if mode == "train": 
-                    return DataLoader(
-                        train_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
-                elif mode =="val" or "test": 
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train, num_workers=self.num_workers, )
-                else:
-                    raise ValueError(f"mode {mode} is not supported")
+        print("ConcatDataset Train and Val")
+        if self.dataset_name == "CIFAR10": 
+            print("Using Cifar Train and Test without Val set")
+            datapath=self.data_path.joinpath('dataset') 
+            # load the dataset
+            train_dataset = datasets.CIFAR10(root=datapath.joinpath(mode), train=True,
+                download=False, transform=self.dataset_transforms[self.task][mode],)
+    
+            dataset = datasets.CIFAR10(datapath.joinpath(mode), train=False,download=False, transform=self.dataset_transforms[self.task][mode],)
+            
+            if mode == "train": 
+                return DataLoader(
+                    train_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+            elif mode =="val" or "test": 
+                return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train, num_workers=self.num_workers, )
+            else:
+                raise ValueError(f"mode {mode} is not supported")
 
-            if self.dataset_name == "CIFAR100" : 
-                print("Using Cifar100 Train and Test without Val set")
-                    
-                datapath=self.data_path.joinpath('dataset') 
-                # load the dataset
-                train_dataset = datasets.CIFAR100(
-                    root=datapath.joinpath(mode), train=True,
-                    download=False, transform=self.dataset_transforms[self.task][mode],
-                )
+        if self.dataset_name == "CIFAR100" : 
+            print("Using Cifar100 Train and Test without Val set")
+                
+            datapath=self.data_path.joinpath('dataset') 
+            # load the dataset
+            train_dataset = datasets.CIFAR100(
+                root=datapath.joinpath(mode), train=True,
+                download=False, transform=self.dataset_transforms[self.task][mode],
+            )
+    
+            dataset = datasets.CIFAR100(datapath.joinpath(mode), train=False,
+                download=False, transform=self.dataset_transforms[self.task][mode],)
         
-                dataset = datasets.CIFAR100(datapath.joinpath(mode), train=False,
-                    download=False, transform=self.dataset_transforms[self.task][mode],)
-            
-                if mode == "train": 
-                    return DataLoader(
-                        train_dataset, batch_size=self.batch_size,num_workers=self.num_workers,)
-                elif mode =="val": 
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                elif mode=="test":      
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
+            if mode == "train": 
+                return DataLoader(
+                    train_dataset, batch_size=self.batch_size,num_workers=self.num_workers,)
+            elif mode =="val" or "test": 
+                return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
             else: 
-                if mode=="train":
-                    print("Preparing ConcateDataset Loader")
-                    concate_dataset = ConcatDataset([self.create_dataset(self.root_dir.joinpath("train/"), self.dataset_transforms[task]["train"]), 
-                                            self.create_dataset(self.root_dir.joinpath("val/"), self.dataset_transforms[task]["val"])])
-                    return DataLoader(dataset=concate_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
-                
-                elif mode=="val" or mode=='test': 
-                    print("Validation set is the same as Test Set")
-                    path=self.root_dir.joinpath('test/')
-                    print(path)
-                    dataset = self.create_dataset(path, self.dataset_transforms[task][mode])
-                    return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
-                else: 
-                    raise ValueError ("dataset only [train,val,test] Set")
-        ## Train_Loader, Val_Loader, Test_Loader
-        if self.datafolder_combine: 
-       
-            if self.dataset_name == "CIFAR10": 
-                print("Using Cifar Train and Test without Val set")
-                datapath=self.data_path.joinpath('dataset') 
-                # load the dataset
-                train_dataset = datasets.CIFAR10(
-                    root=datapath.joinpath(mode), train=True,
-                    download=False, transform=self.dataset_transforms[self.task][mode],
-                )
-        
-                dataset = datasets.CIFAR10(datapath.joinpath(mode), train=False,
-                    download=False, transform=self.dataset_transforms[self.task][mode],)
-                
-                if mode == "train": 
-                    return DataLoader(
-                        train_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
-                elif mode =="val": 
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                elif mode=="test":      
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                    
-            if self.dataset_name == "CIFAR100" : 
-                print("Using Cifar100 Train and Test without Val set")
-                    
-                datapath=self.data_path.joinpath('dataset') 
-                # load the dataset
-                train_dataset = datasets.CIFAR100(
-                    root=datapath.joinpath(mode), train=True,
-                    download=False, transform=self.dataset_transforms[self.task][mode],
-                )
-        
-                dataset = datasets.CIFAR100(datapath.joinpath(mode), train=False,
-                    download=False, transform=self.dataset_transforms[self.task][mode],)
-            
-                if mode == "train": 
-                    return DataLoader(
-                        train_dataset, batch_size=self.batch_size,num_workers=self.num_workers,)
-                elif mode =="val": 
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                elif mode=="test":      
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                
-            else: 
-                if mode=="train": 
-                    print("Enable CombineFolder")
-                    datapath=self.data_path.joinpath("dataset_concate_train_val")
-                    dataset = self.create_dataset(datapath.joinpath(mode), self.dataset_transforms[task][mode])
-                    return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
-                    
-                elif mode=="val" or mode=='test': 
-                    print("Validation set is the same as Test Set")
-                    datapath=self.data_path.joinpath("dataset")
-                    dataset = self.create_dataset(datapath.joinpath('test'), self.dataset_transforms[task]['test'])
-                    return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
-                else: 
-                    raise ValueError ("dataset only [train,val,test] Set")
+                raise ValueError(f"mode {mode} is not supported")
         
         else: 
-
-            if self.dataset_name == "CIFAR10" or self.dataset_name =="CIFAR100" : 
-                if self.dataset_name== "CIFAR10": 
-                    # load the dataset
-
-                    train_dataset = datasets.CIFAR10(
-                        root=self.data_path.joinpath(mode), train=True,
-                        download=False, transform=self.dataset_transforms[self.task][mode],
-                    )
-
-                    valid_dataset = datasets.CIFAR10(
-                        root=self.data_path.joinpath(mode), train=True,
-                        download=False, transform=self.dataset_transforms[self.task][mode],
-                    )
-                    split = 5000
+            if self.concate_dataloader:
+                if mode=="train":
+                    print("Preparing ConcateDataset Loader")
+                    dataset = ConcatDataset([self.create_dataset(self.root_dir.joinpath("train/"), self.dataset_transforms[task]["train"]), 
+                                            self.create_dataset(self.root_dir.joinpath("val/"), self.dataset_transforms[task]["val"])])
+                    return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
                     
-                    dataset = datasets.CIFAR10( self.data_path.joinpath(mode), train=False,
-                        download=True, transform=self.dataset_transforms[self.task][mode],)
-                else: 
-                    # load the dataset
-                    train_dataset = datasets.CIFAR100(
-                        root=self.data_path.joinpath(mode), train=True,
-                        download=False, transform=self.dataset_transforms[self.task][mode],
-                    )
-
-                    valid_dataset = datasets.CIFAR100(
-                        root=self.data_path.joinpath(mode), train=True,
-                        download=False, transform=self.dataset_transforms[self.task][mode],
-                    )  
-                    split = 5067
-                    dataset = datasets.CIFAR100( self.data_path.joinpath(mode), train=False,
-                        download=False, transform=self.dataset_transforms[self.task][mode],)
-                
-                num_train = len(train_dataset)
-                indices = list(range(num_train))
-                
-                np.random.seed(100)
-                np.random.shuffle(indices)
-                train_idx, valid_idx = indices[split:], indices[:split]
-                # train_sampler = SubsetRandomSampler(train_idx)
-                # valid_sampler = SubsetRandomSampler(valid_idx)
-                train_sampler = DistributedSampler(train_idx)
-                valid_sampler = DistributedSampler(valid_idx)
-
-                if mode == "train": 
-                    return DataLoader(
-                        train_dataset, batch_size=self.batch_size, sampler=train_sampler,   
-                        num_workers=self.num_workers, shuffle=(train_sampler is None))
-                elif mode =="val": 
-                    return DataLoader(
-                        valid_dataset, batch_size=self.batch_size, sampler=valid_sampler, 
-                        num_workers=self.num_workers, shuffle=(valid_sampler is None))
-
-                elif mode=="test":      
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                
-            else:
-                datapath=self.data_path.joinpath('dataset') 
-                dataset = self.create_dataset(datapath.joinpath(mode), self.dataset_transforms[task][mode])
+            else: 
+                dataset = self.create_dataset(self.root_dir.joinpath(mode), self.dataset_transforms[task][mode])
                 return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
+
+            if mode=="val" or mode=='test': 
+                print("Validation set is the same as Test Set")
+                dataset = self.create_dataset(self.root_dir.joinpath("test/"), self.dataset_transforms[task][mode])
+                return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
+            else: 
+                raise ValueError ("dataset only [train,val,test] Set")
+       
+    
+            # num_train = len(train_dataset)
+            # indices = list(range(num_train))
+            # np.random.seed(100)
+            # np.random.shuffle(indices)
+            # train_idx, valid_idx = indices[split:], indices[:split]
+            # # train_sampler = SubsetRandomSampler(train_idx)
+            # # valid_sampler = SubsetRandomSampler(valid_idx)
+            # train_sampler = DistributedSampler(train_idx)
+            # valid_sampler = DistributedSampler(valid_idx)
+
+            # if mode == "train": 
+            #     return DataLoader(
+            #         train_dataset, batch_size=self.batch_size, sampler=train_sampler,   
+            #         num_workers=self.num_workers, shuffle=(train_sampler is None))
+            # elif mode =="val": 
+            #     return DataLoader(
+            #         valid_dataset, batch_size=self.batch_size, sampler=valid_sampler, 
+            #         num_workers=self.num_workers, shuffle=(valid_sampler is None))
+            # elif mode=="test":      
+            #     return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
             
+    
     def create_dataset(self, root_path, transform):
         return ImageFolder(root_path, transform)    
 

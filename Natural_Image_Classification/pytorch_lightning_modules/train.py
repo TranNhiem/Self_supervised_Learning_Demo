@@ -1,4 +1,5 @@
-import argparse 
+import argparse
+from operator import truediv 
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from lightning_models import DownstreamLinearModule
@@ -13,7 +14,7 @@ parser.add_argument("-r", "--root_dir", type=str, default="/data/downstream_data
 parser.add_argument("-w", "--weight_path", type=str, default='/data/downstream_tasks/HAPiCLR/Classification/mscrl-imagenet-simclr+pixel_level_contrastive_background-dim1024-paperep=99.ckpt', help="SSL Backbone pretrained weight")
 parser.add_argument("-b", "--batch_size",type=int, default=512,  help="batch_size for evaluation")
 parser.add_argument("-d", "--metric",type=str, default="accuracy_1_5_torchmetric", choices=["accuracy_1_5_torchmetric",  "accuracy_1_5", "Mean_average_per_cls"], help="Which metric to use")
-parser.add_argument("-t", "--task", choices=["linear", "finetune"], help="linear_eval or finetune")
+parser.add_argument("-t", "--task",required=True, choices=["linear_eval", "finetune"], help="linear_eval or finetune")
 parser.add_argument("-ep", "--epochs", type= int, default =60, help="number of iterations")
 parser.add_argument("-wed", "--weight_decay", type=float, default=5e-7, help="The amount of weight decay to use")
 parser.add_argument("-ra", "--RandAug", type=bool, default=False, help="linear_eval or finetune")

@@ -118,7 +118,6 @@ class DownstreamDataloader(pl.LightningDataModule):
         else: 
             if mode == 'val' or mode == 'test':
                 dataset = self.create_dataset(self.data_path.joinpath(mode, 'val'), self.dataset_transforms[task][mode])
-            
             else:
                 dataset = self.create_dataset(self.data_path.joinpath(mode), self.dataset_transforms[task][mode])
             
