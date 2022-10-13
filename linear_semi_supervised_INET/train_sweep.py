@@ -18,11 +18,11 @@ parser.add_argument("-r", "--root_dir", type=str, default="/img_data/one_per", h
 parser.add_argument("-w", "--weight_path", type=str, default='/data/downstream_tasks/HAPiCLR/Classification/mscrl-imagenet-simclr+pixel_level_contrastive_background-dim1024-paperep=99.ckpt', help="SSL Backbone pretrained weight")
 parser.add_argument("-b", "--batch_size",type=int, default=512,  help="batch_size for evaluation")
 parser.add_argument("-d", "--metric",type=str, default="accuracy_1_5_torchmetric", choices=["accuracy_1_5_torchmetric",  "accuracy_1_5", "Mean_average_per_cls"], help="Which metric to use")
-parser.add_argument("-t", "--task",type=str, default="linear_eval",choices=["finetune", "linear_eval"],  help="linear_eval or finetune")
+parser.add_argument("-t", "--task",type=str, default="finetune",choices=["finetune", "linear_eval"],  help="linear_eval or finetune")
 parser.add_argument("-ra", "--RandAug", type=bool, default=False, help="linear_eval or finetune")
 parser.add_argument("-lr_sch", "--lr_scheduler", type=str, default='step', help="Scheduler lr value during evaluation")
 parser.add_argument("-optim", "--optim_type", type=str, default='sgd',choices=['sgd','adam' ,'adamw'], help="Scheduler lr value during evaluation")
-parser.add_argument("-lr", "--Init_lr", type=float, default=1e-2, help="The initial learning rate")
+parser.add_argument("-lr", "--lr", type=float, default=1e-2, help="The initial learning rate")
 parser.add_argument("-ep", "--epochs", type= int, default =60, help="number of iterations")
 parser.add_argument("-wed", "--weight_decay", type=float, default=5e-7, help="The amount of weight decay to use")
 
@@ -64,15 +64,13 @@ wandb.init(config= hyperparameter_default,
 )
 
 config= wandb.config 
-model = DownstreamLinearModule_sweep(config,args.weight_path, kwargs["num_classes"], 
-                                args.batch_size, args.metric,
-                                    args.task, kwargs["lr_decay_steps"] )#**kwargs)
+model = DownstreamLinearModule_sweep(config,**kwargs)
 dataloader = DownstreamDataloader(args.DATASET, root_dir=args.root_dir, download=False, task=kwargs['task'], batch_size=kwargs["batch_size"], num_workers=kwargs['num_workers'], 
 RandAug=kwargs['RandAug'],num_transfs=kwargs['num_transfs'], magni_transfs=kwargs['magni_transfs'])
 
 wandb_logger = WandbLogger(
     # name of the experiment
-    name=f'{METHOD}_semi-supervised_{DATASET}_lr={kwargs["lr"]}_lr_schedu={kwargs["scheduler"]}_wd={kwargs["weight_decay"]}',
+    name=f'{args.METHOD}_{args.DATASET}_lr={args.lr}_lr_sched={args.lr_scheduler}_wd={args.weight_decay}_task{args.task}',
     # name=f'{METHOD}_linear_eval_{DATASET}_lr={kwargs["lr"]}_lr_sched={kwargs["scheduler"]}_{str(kwargs["lr_decay_steps"])}_wd={kwargs["weight_decay"]}_batch={kwargs["batch_size"]}_RA={kwargs["num_transfs"], kwargs["magni_transfs"]}_opti_Adamw',
     # project="MNCRL_downstream_tasks_1",  # name of the wandb project
     project="HAPiCLR_Downstream_Tasks", 

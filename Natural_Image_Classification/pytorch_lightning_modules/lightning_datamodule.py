@@ -1,13 +1,15 @@
-# Whole pipeline:
+# Whole pipeline for Natural Image Classification Dataloader :
 # Download -> Extract -> Split -> Dataset -----> Transform -> dataloader
-# 
+## 1. Download 
+# Download the dataset from the internet --> Checkout the Download_dataset_scripts folder
+## 2. Extract -->> Done by yourself
+## 3. Split -->> (Structure Dataset folder) --> [train, val, test] 
+## 4. Transform --> Using Standard Validation, Test transform of ImageNet dataste + Extra adding RandAugment
+## 5. Dataloader --> Using Pytorch Lightning Dataloader (LightningDataModule)
 
 from tkinter import Image
-
 from sklearn.utils import shuffle
-
 import pytorch_lightning as pl
-
 from pathlib import Path
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
@@ -20,54 +22,36 @@ from pytorch_lightning.callbacks.finetuning import BaseFinetuning
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.distributed import DistributedSampler
 import numpy as np
-import patoolib
 from torchvision.transforms import autoaugment as auto_aug
 from torch.utils.data import ConcatDataset
 
-DATASET_NUM_CLASSES = {
-    'food101': 101,
-    'flowers102': 102,
-    'DTD': 47,
-    'Cars': 196,
-    'CIFAR10': 10, 
-    'CIFAR100': 100,
-    'Pets': 37,
-    'SUN397': 397,
-    'Aircrafts': 100,
-    'Caltech101': 101,
-    'birdsnap': 500, 
-
-}
+## --------------------------------------_-------------------
+## --------Support Concatenate Train,Val loader together---
 
 class DownstreamDataloader(pl.LightningDataModule):
-    def __init__(self, dataset_name: str, download: bool, task: str, replica_batch_size: int, num_workers: int, 
-                concate_dataloader: bool, datafolder_combine: bool, RandAug:bool, num_transfs: int, magni_transfs: int):
+    def __init__(self, 
+                    root_dir: str ,
+                    dataset_name: str, 
+                    task: str,
+                    batch_size: int, 
+                    num_workers: int, 
+                RandAug:bool, num_transfs: int, magni_transfs: int, 
+                concate_dataloader: bool= False, 
+                datafolder_combine: bool= False, 
+                **kwargs):
+            
         super().__init__()
         self.dataset_name = dataset_name
-        self.root_dir = Path('/media/rick/2TB_1/ImageNet_dataset').joinpath(dataset_name) if 'per' in dataset_name else Path('/home/rick/offline_finetune').joinpath(dataset_name)
-        self.download = download
+        self.root_dir = Path(root_dir)
         self.task = task
         self.RandAug = RandAug
-        self.batch_size = replica_batch_size
+        self.batch_size = batch_size
         self.num_workers = num_workers
         self.concate_dataloader= concate_dataloader
         self.datafolder_combine=datafolder_combine
         self.num_ops= num_transfs
         self.magnitude= magni_transfs
-        self.dataset_urls = {
-            'food101': 'http://data.vision.ee.ethz.ch/cvl/food-101.tar.gz',
-            'flowers102': '',
-            'dtd': '',
-            'cars': '',
-            'cifar10': '', 
-            'cifar100': '',
-            'pets': '',
-            'sun397': '',
-            'aircrafts': '',
-            # adding complete dataset
-            'Caltech101': 'https://s3-eu-west-1.amazonaws.com/pfigshare-u-files/12855005/Caltech101ImageDataset.rar', 
-            'birdsnap': '', 
-        }
+
         self.dataset_transforms = {
             "linear_eval": {
                 "train": self.linear_eval_train_transforms,
@@ -81,18 +65,6 @@ class DownstreamDataloader(pl.LightningDataModule):
             }
         }
 
-    def prepare_data(self):
-        if self.download:
-            download_and_extract_archive(self.dataset_urls[self.dataset_name], self.root_dir)
-   
-        ## Download dataset for the first time
-        # if self.dataset_name== "Caltech101": 
-        #     print('download Caltech101')
-        #     download_url(self.dataset_urls[self.dataset_name], self.root_dir)
-        #     # extract 
-        #     path_=os.path.join(self.root_dir, "Caltech101ImageDataset.rar")
-        #     patoolib.extract_archive(path_, outdir=self.root_dir)
-    
 
     def __dataloader(self, task: str, mode: str ):
         
@@ -101,27 +73,24 @@ class DownstreamDataloader(pl.LightningDataModule):
         ## Train_Loader & Val_Loader for training, Test_Loader for Evaluate and Report
         ## This is Configure from BYOL, SimCLR
         if self.concate_dataloader:
-            
+            print("ConcatDataset Train and Val")
             if self.dataset_name == "CIFAR10": 
                 print("Using Cifar Train and Test without Val set")
                 datapath=self.data_path.joinpath('dataset') 
                 # load the dataset
-                train_dataset = datasets.CIFAR10(
-                    root=datapath.joinpath(mode), train=True,
-                    download=False, transform=self.dataset_transforms[self.task][mode],
-                )
-        
-                dataset = datasets.CIFAR10(datapath.joinpath(mode), train=False,
+                train_dataset = datasets.CIFAR10(root=datapath.joinpath(mode), train=True,
                     download=False, transform=self.dataset_transforms[self.task][mode],)
+        
+                dataset = datasets.CIFAR10(datapath.joinpath(mode), train=False,download=False, transform=self.dataset_transforms[self.task][mode],)
                 
                 if mode == "train": 
                     return DataLoader(
                         train_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
-                elif mode =="val": 
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                elif mode=="test":      
-                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
-                    
+                elif mode =="val" or "test": 
+                    return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train, num_workers=self.num_workers, )
+                else:
+                    raise ValueError(f"mode {mode} is not supported")
+
             if self.dataset_name == "CIFAR100" : 
                 print("Using Cifar100 Train and Test without Val set")
                     
@@ -143,17 +112,17 @@ class DownstreamDataloader(pl.LightningDataModule):
                 elif mode=="test":      
                     return DataLoader(dataset, batch_size=self.batch_size, shuffle=is_train,num_workers=self.num_workers, )
             else: 
-                if mode=="train_val":
-                    datapath=self.data_path.joinpath("dataset")
+                if mode=="train":
                     print("Preparing ConcateDataset Loader")
-                    concate_dataset = ConcatDataset([self.create_dataset(datapath.joinpath("train"), self.dataset_transforms[task]["train"]), 
-                                            self.create_dataset(datapath.joinpath("val"), self.dataset_transforms[task]["val"])])
+                    concate_dataset = ConcatDataset([self.create_dataset(self.root_dir.joinpath("train/"), self.dataset_transforms[task]["train"]), 
+                                            self.create_dataset(self.root_dir.joinpath("val/"), self.dataset_transforms[task]["val"])])
                     return DataLoader(dataset=concate_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
                 
                 elif mode=="val" or mode=='test': 
                     print("Validation set is the same as Test Set")
-                    datapath=self.data_path.joinpath("dataset")
-                    dataset = self.create_dataset(datapath.joinpath('test'), self.dataset_transforms[task]['test'])
+                    path=self.root_dir.joinpath('test/')
+                    print(path)
+                    dataset = self.create_dataset(path, self.dataset_transforms[task][mode])
                     return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
                 else: 
                     raise ValueError ("dataset only [train,val,test] Set")
@@ -215,6 +184,7 @@ class DownstreamDataloader(pl.LightningDataModule):
                     return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
                 else: 
                     raise ValueError ("dataset only [train,val,test] Set")
+        
         else: 
 
             if self.dataset_name == "CIFAR10" or self.dataset_name =="CIFAR100" : 
@@ -281,26 +251,16 @@ class DownstreamDataloader(pl.LightningDataModule):
         return ImageFolder(root_path, transform)    
 
     def train_dataloader(self):
-        # if self.dataset_name=="Place365" or "Caltech101" or "Birdsnap":
-        #     return DataLoader(dataset=self.train, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
-        # else: 
-        if self.concate_dataloader: 
-            print("Enable ConcateDataloader")
-            return self.__dataloader(task=self.task, mode="train_val")
-        else: 
-            return self.__dataloader(task=self.task, mode='train')
+
+        return self.__dataloader(task=self.task, mode="train")
 
     def val_dataloader(self):
 
         return self.__dataloader(task=self.task, mode='val')
 
     def test_dataloader(self):
-
         return self.__dataloader(task=self.task, mode='test')
       
-    @property
-    def data_path(self):
-        return Path(self.root_dir)
 
     @property
     def linear_eval_train_transforms(self):

@@ -35,13 +35,11 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
         self.optim_type=hypers.optim_type
         self.scheduler = hypers.lr_scheduler ## Sweeping learning rate schedule
         self.__build_model()
-        
         ## Plugin Modules
         self.loss_module = nn.CrossEntropyLoss()
         self.mean_acc = Accuracy(num_classes=num_classes, average='macro')
         self.accuracy_5= Accuracy(top_k=5)
         self.accuracy= Accuracy()
-
 
     def __build_model(self):
 

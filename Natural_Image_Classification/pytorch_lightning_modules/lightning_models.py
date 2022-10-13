@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from pathlib import Path
 from torch import nn
 from torch.optim.lr_scheduler import MultiStepLR, ReduceLROnPlateau
-from torch.optim import SGD, AdamW
+from torch.optim import SGD, AdamW, Adam
 from torchmetrics import Accuracy
 from torchvision.models import resnet50
 
@@ -16,9 +16,9 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
         backbone_weights: str,
         num_classes: int,
         batch_size: int,
+        metric: str, 
+        task: str, 
         lr_decay_steps: Optional[Sequence[int]] = None,
-        metric: str = 'accuracy',
-        task: str = 'linear_eval',
         **kwargs,
     ):
         super().__init__()
@@ -32,15 +32,14 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
         self.lr_decay_steps = lr_decay_steps
         self.metric = metric
         self.task = task
+        self.optim_type=hypers.optim_type
         self.scheduler = hypers.lr_scheduler ## Sweeping learning rate schedule
         self.__build_model()
-        
         ## Plugin Modules
         self.loss_module = nn.CrossEntropyLoss()
         self.mean_acc = Accuracy(num_classes=num_classes, average='macro')
         self.accuracy_5= Accuracy(top_k=5)
         self.accuracy= Accuracy()
-
 
     def __build_model(self):
 
@@ -210,15 +209,20 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
     def configure_optimizers(self):
         # parameters = list(self.parameters())
         # trainable_parameters = list(filter(lambda p: p.requires_grad, parameters))
+   
         if self.task == 'finetune':
-            optimizer = SGD(self.parameters(), lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
+            parameters=self.parameters()
         else:
-            #optimizer = LBFGS(self.parameters(), lr=self.lr )
-            #optimizer = SGD(self.classifier.parameters(), lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
-            optimizer = AdamW(self.classifier.parameters(), lr=self.lr, betas=(0.9,0.999), weight_decay=self.weight_decay)
-
-        #optimizer = SGD(self.parameters(), lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
-        
+            parameters=self.classifier.parameters()
+            
+        if self.optim_type=="sgd": 
+            optimizer = SGD(parameters, lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
+        elif self.optim_type=="adam":
+            optimizer = Adam(parameters, lr=self.lr, weight_decay=self.weight_decay)
+        elif self.optim_type=="adamw":
+            optimizer = AdamW(parameters, lr=self.lr, betas=(0.9,0.999), weight_decay=self.weight_decay)
+    
+    
         if self.scheduler == 'step':
             scheduler = MultiStepLR(optimizer, self.lr_decay_steps, gamma=0.5)
             return [optimizer], [scheduler]
@@ -259,12 +263,13 @@ class DownstreamLinearModule(pl.LightningModule):
         self, 
         backbone_weights: str,
         num_classes: int,
-        max_epochs: int,
+        epochs: int,
         batch_size: int,
         lr: float,
         weight_decay: float,
         scheduler: str,
         metric: str ,
+        optimizier: str,
         task: str ,
         lr_decay_steps: Optional[Sequence[int]] = None,
         **kwargs,
@@ -272,7 +277,7 @@ class DownstreamLinearModule(pl.LightningModule):
         super().__init__()
         self.backbone_weights = backbone_weights
         self.num_classes = num_classes
-        self.max_epochs = max_epochs
+        self.max_epochs = epochs
         self.batch_size = batch_size
         self.lr = lr *batch_size/256
         print("learning Rate of", self.lr)
@@ -282,7 +287,7 @@ class DownstreamLinearModule(pl.LightningModule):
         self.task = task
         self.scheduler = scheduler
         self.__build_model()
-
+        self.optim_type=optimizier
         ## Plugin Modules
         self.loss_module = nn.CrossEntropyLoss()
         self.mean_acc = Accuracy(num_classes=num_classes, average='macro')
@@ -539,14 +544,19 @@ class DownstreamLinearModule(pl.LightningModule):
         # parameters = list(self.parameters())
         # trainable_parameters = list(filter(lambda p: p.requires_grad, parameters))
         if self.task == 'finetune':
-            optimizer = SGD(self.parameters(), lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
+            parameters=self.parameters()
         else:
-            #optimizer = LBFGS(self.parameters(), lr=self.lr )
-            #optimizer = SGD(self.classifier.parameters(), lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
-            optimizer = AdamW(self.classifier.parameters(), lr=self.lr, betas=(0.9,0.999), weight_decay=self.weight_decay)
+            parameters=self.classifier.parameters()
 
-        #optimizer = SGD(self.parameters(), lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
+        if self.optim_type=="sgd": 
+            optimizer = SGD(parameters, lr=self.lr, momentum=0.9, weight_decay=self.weight_decay, nesterov=True)
+        elif self.optim_type=="adam":
+            optimizer = Adam(parameters, lr=self.lr, weight_decay=self.weight_decay)
+        elif self.optim_type=="adamw":
+            optimizer = AdamW(parameters, lr=self.lr, betas=(0.9,0.999), weight_decay=self.weight_decay)
         
+            #optimizer = LBFGS(self.parameters(), lr=self.lr )
+
         if self.scheduler == 'step':
             scheduler = MultiStepLR(optimizer, self.lr_decay_steps, gamma=0.5)
             return [optimizer], [scheduler]
