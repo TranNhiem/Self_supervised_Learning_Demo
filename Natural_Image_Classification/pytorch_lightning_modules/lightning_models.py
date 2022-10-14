@@ -15,7 +15,7 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
         hypers, 
         backbone_weights: str,
         num_classes: int,
-        batch_size: int,
+        #batch_size: int,
         metric: str, 
         task: str, 
         lr_decay_steps: Optional[Sequence[int]] = None,
@@ -25,8 +25,8 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
         self.backbone_weights = backbone_weights
         self.num_classes = num_classes
         self.max_epochs = hypers.epochs
-        self.batch_size = batch_size
-        self.lr = hypers.lr *batch_size/256 # Sweeping Learning rate value
+        self.batch_size = hypers.batch_size
+        self.lr = hypers.lr *self.batch_size/256 # Sweeping Learning rate value
         print("learning Rate of", self.lr)
         self.weight_decay = hypers.weight_decay # Sweeping weight decay value
         self.lr_decay_steps = lr_decay_steps

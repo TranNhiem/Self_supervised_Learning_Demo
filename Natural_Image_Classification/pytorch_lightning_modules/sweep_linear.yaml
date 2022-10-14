@@ -1,5 +1,12 @@
+program: train_sweep.py 
+
+hyperbad: 
+  min_iter: 5
+  max_iter: 10
+method: bayes #"random" --> Random search
+
 metric:
-  name: val_accuracy_5
+  name: ptl/val_accuracy_1
   goal: maximize
 
 parameters:
@@ -14,7 +21,7 @@ parameters:
     max: -2.00 # exp(-2.00) = 0.14e-1
   batch_size:
     distribution: int_uniform
-    min: 1024
+    min: 512
     max: 2048
   weight_decay:
     # log uniform distribution between exp(min) and exp(max)
