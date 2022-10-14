@@ -233,7 +233,6 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
         else: 
             return optimizer
             
-
     def __accuracy_at_k(self, outputs, targets, top_k=(1, 5)):
         with torch.no_grad():
             maxk = max(top_k)
