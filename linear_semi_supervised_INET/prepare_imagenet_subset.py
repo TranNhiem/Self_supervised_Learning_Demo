@@ -65,31 +65,25 @@ def split_imagenet_subset(one_per_txt='/home/harry/ssl_downstream_task/Self_supe
 ## ----------------------------------------------------
 class DownstreamDataloader(pl.LightningDataModule):
     def __init__(self, 
-            
-            dataset_name: str, download: bool, 
             task: str,
             batch_size: int,
             num_workers: int,
             root_dir: str ,
+            imgNet_valpath: str,
             RandAug: bool= False, num_transfs: int= 2, magni_transfs: int =7, 
+            **kwargs):
 
-        
-            ):
 
         super().__init__()
-        self.dataset_name = dataset_name
         self.root_dir = root_dir
-        self.download = download
         self.task = task
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.RandAug=RandAug
         self.num_ops= num_transfs
         self.magnitude= magni_transfs
-        self.dataset_urls = {
-            'food101': 'http://data.vision.ee.ethz.ch/cvl/food-101.tar.gz',
-
-        }
+        self.imgNet_valpath=imgNet_valpath
+  
         self.dataset_transforms = {
             "linear_eval": {
                 "train": self.linear_eval_train_transforms,
@@ -110,23 +104,19 @@ class DownstreamDataloader(pl.LightningDataModule):
 
         }
 
-    def prepare_data(self):
-        if self.download:
-            download_and_extract_archive(self.dataset_urls[self.dataset_name], self.root_dir)
 
     def __dataloader(self, task: str, mode: str):
-        
-        if self.task=="ImageNet_linear":
-            dataset = self.create_dataset(self.data_path.joinpath(mode), self.dataset_transforms[task][mode])
-        else: 
-            if mode == 'val' or mode == 'test':
-                dataset = self.create_dataset(self.data_path.joinpath(mode, 'val'), self.dataset_transforms[task][mode])
-            else:
-                dataset = self.create_dataset(self.data_path.joinpath(mode), self.dataset_transforms[task][mode])
-            
         is_train = True if mode == 'train' else False
-        return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train,prefetch_factor=10 )
-    
+        
+        if mode=="val" or mode=='test': 
+            print("Validation set is the same as Test Set")    
+            dataset = self.create_dataset(self.imgNet_valpath, self.dataset_transforms[task][mode])
+            return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
+        
+        elif mode== "train":
+            dataset = self.create_dataset(self.root_dir, self.dataset_transforms[task][mode])
+            return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
+
     def create_dataset(self, root_path, transform):
         return ImageFolder(root_path, transform)
 
@@ -141,11 +131,11 @@ class DownstreamDataloader(pl.LightningDataModule):
 
     @property
     def data_path(self):
-        if self.dataset_name == "ImageNet":
-            return Path(self.root_dir)
-        else:
-            return Path(self.root_dir).joinpath("dataset")
-        #return Path(self.root_dir)
+        # if self.dataset_name == "ImageNet":
+        #     return Path(self.root_dir)
+        # else:
+        #     return Path(self.root_dir).joinpath("dataset")
+        return Path(self.root_dir)
 
     @property
     def linear_eval_train_transforms(self):

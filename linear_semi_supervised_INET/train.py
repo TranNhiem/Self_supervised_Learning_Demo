@@ -18,6 +18,7 @@ parser.add_argument("-b", "--batch_size",type=int, default=256,  help="batch_siz
 parser.add_argument("-d", "--metric",type=str, default="accuracy_1_5_torchmetric", choices=["accuracy_1_5_torchmetric",  "accuracy_1_5", "Mean_average_per_cls"], help="Which metric to use")
 parser.add_argument("-t", "--task", choices=["linear", "finetune"], help="linear_eval or finetune")
 parser.add_argument("-ep", "--epochs", type= int, default =60, help="number of iterations")
+parser.add_argument( "-gpus", "--gpus", type= list, default =[0,1], help="number of iterations")
 parser.add_argument("-wed", "--weight_decay", type=float, default=5e-7, help="The amount of weight decay to use")
 parser.add_argument("-ra", "--RandAug", type=bool, default=False, help="linear_eval or finetune")
 parser.add_argument("-lr", "--Init_lr", type=float, default=1e-2, help="The initial learning rate")
@@ -25,6 +26,14 @@ parser.add_argument("-lr_sch", "--lr_scheduler", type=str, default='step', help=
 parser.add_argument("-optim", "--optimizier", type=str, default='sgd',choices=['sgd', 'adamw'], help="Scheduler lr value during evaluation")
 
 args = parser.parse_args()
+gpus_args={
+    "HAPiCLR_m":[1, 2],
+    "HAPiCLR_m":[1, 2],
+    "DenseCLR": [2,3],
+    "PixelPro": [2,3],
+    "SimCLR": [4,5],
+    "MoCo_V2": [4,5]
+}
 
 weight_path={
     #"MoCo_V2": "/code_spec/SSL_Downstream_tasks/moco_v2_200ep_pretrain.pth.tar",
@@ -51,7 +60,8 @@ ckpt_type= {
 root_dir={
     "one_per": "/data1/1K_New/one_per/dataset/train/",
     "ten_per": "/data1/1K_New/ten_per/dataset/train/",
-    "imagenet" : "/data1/1K_New/train/"
+    "imagenet" : "/data1/1K_New/train/",
+    "val_path": "/data1/1K_New/val/",
 }
 lr_decay_steps={
     "one_per": [15, 35, 45],
@@ -65,7 +75,7 @@ kwargs = {
     "lars": False,
     "auto_lr_find": False,# auto
     "exclude_bias_n_norm": False,
-    "gpus": 2,    # Number of GPUs
+    "gpus": gpus_args[args.METHOD],    # Number of GPUs
     "lr_decay_steps": lr_decay_steps[args.DATASET],  #[30, 55, 75], #[30, 6, 75],
     "num_workers": 20,
     "num_transfs": 2,  
@@ -84,14 +94,14 @@ kwargs = {
     "scheduler": args.lr_scheduler,
     "optimizier": args.optimizier,
     "root_dir": root_dir[args.DATASET],
-    "ckpt_type": ckpt_type[args.METHOD], 
+    "ckpt_type": ckpt_type[args.METHOD],
+    "imgNet_valpath":  root_dir["val_path"], 
 }
 
 
 model = DownstreamLinearModule(**kwargs)
 
-dataloader = DownstreamDataloader(args.DATASET,root_dir=args.root_dir, download=False, task=kwargs['task'], batch_size=kwargs["batch_size"], num_workers=kwargs['num_workers'], 
-RandAug=kwargs['RandAug'],num_transfs=kwargs['num_transfs'], magni_transfs=kwargs['magni_transfs'], )
+dataloader = DownstreamDataloader(**kwargs)
 
 wandb_logger = WandbLogger(
     # name of the experiment
@@ -104,7 +114,7 @@ wandb_logger = WandbLogger(
     job_type=args.task,
     offline=False,)
 
-sync_batch=True if kwargs["gpus"] > 1 else False
+sync_batch=True if len(kwargs["gpus"]) > 1 else False
 wandb_logger.watch(model, log="all", log_freq=50)
 trainer = Trainer(accelerator='gpu', auto_select_gpus=False, gpus=kwargs["gpus"],
                    logger=wandb_logger, max_epochs=kwargs["epochs"], auto_lr_find=kwargs["auto_lr_find"], strategy="ddp", sync_batchnorm=sync_batch)

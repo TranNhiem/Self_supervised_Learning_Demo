@@ -461,8 +461,8 @@ class DownstreamLinearModule(pl.LightningModule):
         # print(x.shape)
         #y_logits = self.forward(x)
         y_logits = self.forward(x)
-        print(f"the ground truth label {y[0]}")
-        print(f"The prediction with softmax {y_logits[0].argmax(dim=-1)}")
+        # print(f"the ground truth label {y[0]}")
+        # print(f"The prediction with softmax {y_logits[0].argmax(dim=-1)}")
 
         # 2. Compute loss
         train_loss = F.cross_entropy(y_logits, y)
