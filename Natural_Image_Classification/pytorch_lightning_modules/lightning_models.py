@@ -44,9 +44,9 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
     def __build_model(self):
 
         # 1. Backbone
-        backbone = resnet50(pretrained=True)
+        backbone = resnet50()
         ## Loading weight Configure
-        state = torch.load(self.backbone_weights)["state_dict"]  
+        state = torch.load(self.backbone_weights) #["state_dict"]  
         for k in list(state.keys()):
             if "backbone" in k:
                 state[k.replace("backbone.", "")] = state[k]
@@ -228,7 +228,7 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
             return [optimizer], [scheduler]
         elif self.scheduler == 'reduce':
             #scheduler = ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
-            scheduler = {"scheduler": ReduceLROnPlateau(optimizer, patience=20, factor=0.5,),  "monitor": "ptl/val_loss"}
+            scheduler = {"scheduler": ReduceLROnPlateau(optimizer, patience=15, factor=0.5,),  "monitor": "ptl/val_loss"}
             return [optimizer], [scheduler]        
         else: 
             return optimizer
@@ -257,6 +257,7 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
         value = value / n
         return value.squeeze(0)
 
+
 class DownstreamLinearModule(pl.LightningModule):
     def __init__(
         self, 
@@ -270,6 +271,7 @@ class DownstreamLinearModule(pl.LightningModule):
         metric: str ,
         optimizier: str,
         task: str ,
+        ckpt_type: str, 
         lr_decay_steps: Optional[Sequence[int]] = None,
         **kwargs,
     ):
@@ -285,6 +287,7 @@ class DownstreamLinearModule(pl.LightningModule):
         self.metric = metric
         self.task = task
         self.scheduler = scheduler
+        self.ckpt_type= ckpt_type
         self.__build_model()
         self.optim_type=optimizier
         ## Plugin Modules
@@ -292,6 +295,7 @@ class DownstreamLinearModule(pl.LightningModule):
         self.mean_acc = Accuracy(num_classes=num_classes, average='macro')
         self.accuracy_5= Accuracy(top_k=5)
         self.accuracy= Accuracy()
+       
 
     # def __build_model(self):
 
@@ -359,19 +363,109 @@ class DownstreamLinearModule(pl.LightningModule):
     def __build_model(self):
 
         # 1. Backbone
-        backbone = resnet50(pretrained=True)
-        ## Loading weight Configure
-        state = torch.load(self.backbone_weights)["state_dict"]  
-        for k in list(state.keys()):
-            if "backbone" in k:
-                state[k.replace("backbone.", "")] = state[k]
-            del state[k]
-        backbone.load_state_dict(state, strict=False)
+        backbone = resnet50(pretrained=False)#pretrained=False
+        backbone.fc = nn.Identity()
+        feature_dim = backbone.inplanes
+        
+        # for name, param in backbone.named_parameters():
+        #     if name not in ['fc.weight', 'fc.bias']:
+        #         if self.task=="linear_eval": 
+        #             param.requires_grad = False
+        #         else: 
+        #             param.requires_grad = True
+
+        if self.ckpt_type=="solo_learn":
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["state_dict"] 
+            #breakpoint() 
+            for k in list(checkpoint.keys()):
+                if "backbone" in k:
+                    checkpoint[k.replace("backbone.", "")] = checkpoint[k]
+                del checkpoint[k]
+                
+            #ckpt_lst=list(checkpoint.keys())
+            # print(ckpt_lst[0])
+            # breakpoint()
+            backbone.load_state_dict(checkpoint, strict=False)
+            
+            
+        elif self.ckpt_type == "pixelpro":
+            
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["model"]
+            for k in list(checkpoint.keys()):
+                if "module.encoder." in k:
+                    checkpoint[k.replace("module.encoder.", "")] = checkpoint[k]
+                del checkpoint[k]
+            backbone.load_state_dict(checkpoint, strict=True)
+            #breakpoint()
+            
+
+        elif self.ckpt_type == "DenseCL":
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["state_dict"]
+            #breakpoint()
+            backbone.load_state_dict(checkpoint, strict=True)
+            #breakpoint()
 
 
+        elif self.ckpt_type == "moco":
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["state_dict"]
+            for k in list(checkpoint.keys()):
+                if "module.encoder_q." in k:
+                    checkpoint[k.replace("module.encoder_q.", "")] = checkpoint[k]
+                del checkpoint[k]
+            
+            backbone.load_state_dict(checkpoint, strict=False)
+            #breakpoint()
+       
+        else: 
+            raise ValueError("ckpt_type not found")
+            #breakpoint()
+      
+        self.feature_extractor = backbone
+        self.feature_extractor.load_state_dict(checkpoint, strict=False)
+        #breakpoint()
         ## ---------- Method 2 -------------
         layers = list(backbone.children())[:-1]
         self.feature_extractor = nn.Sequential(*layers)
+   
+        # linear model
+        self.classifier = nn.Linear(2048, self.num_classes)#feature_dim
+    
+        
+        # for name, param in backbone.named_parameters():
+        #     if name not in ['fc.weight', 'fc.bias']:
+        #         if self.task=="linear_eval": 
+        #             param.requires_grad = False
+        #         else: 
+        #             param.requires_grad = True
+        
+        # # state_dict = torch.load(self.backbone_weights, map_location="cpu")['state_dict']
+        # # # rename moco pre-trained keys
+        # # for k in list(state_dict.keys()):
+        # #     # retain only encoder_q up to before the embedding layer
+        # #     if k.startswith('module.encoder_q') and not k.startswith('module.encoder_q.fc'):
+        # #         # remove prefix
+        # #         state_dict[k[len("module.encoder_q."):]] = state_dict[k]
+        # #     # delete renamed or unused k
+        # #     del state_dict[k]
+        # state = torch.load(self.backbone_weights)["state_dict"]  
+        # for k in list(state.keys()):
+        #     if "backbone" in k:
+        #         state[k.replace("backbone.", "")] = state[k]
+        #     del state[k]
+        # backbone.load_state_dict(state, strict=False)
+        # self.feature_extractor = backbone
+        # self.feature_extractor.load_state_dict(state, strict=False)
+
+        #self.feature_extractor.load_state_dict(torch.load(self.backbone_weights, map_location=torch.device('cpu'))["state_dict"], strict=False)
+        #self.feature_extractor.eval()
+        ## Loading weight Configure
+       
+
+        #self.feature_extractor = backbone
+        ## ---------- Method 2 -------------
+        # layers = list(backbone.children())[:-1]
+        # self.feature_extractor = nn.Sequential(*layers)
+   
    
         # linear model
         self.classifier = nn.Linear(2048, self.num_classes)
@@ -393,6 +487,7 @@ class DownstreamLinearModule(pl.LightningModule):
         # x = self.feature_extractor(x)
         # # 2. Classification
         # x = self.fc(x)
+
         ## ----Method 2 ------
         if self.task=="finetune": 
             representations = self.feature_extractor(x).flatten(1)
@@ -421,8 +516,8 @@ class DownstreamLinearModule(pl.LightningModule):
         # print(x.shape)
         #y_logits = self.forward(x)
         y_logits = self.forward(x)
-        print(f"the ground truth label {y[0]}")
-        print(f"The prediction with softmax {y_logits[0].argmax(dim=-1)}")
+        # print(f"the ground truth label {y[0]}")
+        # print(f"The prediction with softmax {y_logits[0].argmax(dim=-1)}")
 
         # 2. Compute loss
         train_loss = F.cross_entropy(y_logits, y)
@@ -555,7 +650,6 @@ class DownstreamLinearModule(pl.LightningModule):
             optimizer = AdamW(parameters, lr=self.lr, betas=(0.9,0.999), weight_decay=self.weight_decay)
         
             #optimizer = LBFGS(self.parameters(), lr=self.lr )
-
         if self.scheduler == 'step':
             scheduler = MultiStepLR(optimizer, self.lr_decay_steps, gamma=0.5)
             return [optimizer], [scheduler]

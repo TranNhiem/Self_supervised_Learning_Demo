@@ -119,16 +119,19 @@ class DownstreamDataloader(pl.LightningDataModule):
                     return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
                     
             else: 
-                dataset = self.create_dataset(self.root_dir.joinpath(mode), self.dataset_transforms[task][mode])
-                return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
+               
+                if mode=="val" or mode=='test': 
+                    print("Validation set is the same as Test Set")
+                    dataset = self.create_dataset(self.root_dir.joinpath("test/"), self.dataset_transforms[task][mode])
+                    return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
+                
+                elif mode== "train":
+                    dataset = self.create_dataset(self.root_dir.joinpath(mode), self.dataset_transforms[task][mode])
+                    return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
 
-            if mode=="val" or mode=='test': 
-                print("Validation set is the same as Test Set")
-                dataset = self.create_dataset(self.root_dir.joinpath("test/"), self.dataset_transforms[task][mode])
-                return DataLoader(dataset=dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=is_train)
-            else: 
-                raise ValueError ("dataset only [train,val,test] Set")
-       
+                else: 
+                    raise ValueError ("dataset only [train,val,test] Set")
+        
     
             # num_train = len(train_dataset)
             # indices = list(range(num_train))
@@ -160,7 +163,6 @@ class DownstreamDataloader(pl.LightningDataModule):
         return self.__dataloader(task=self.task, mode="train")
 
     def val_dataloader(self):
-
         return self.__dataloader(task=self.task, mode='val')
 
     def test_dataloader(self):

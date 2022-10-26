@@ -13,7 +13,7 @@ parameters:
   epochs:
     distribution: int_uniform
     min: 60
-    max: 90
+    max: 120
   lr:
     # log uniform distribution between exp(min) and exp(max)
     distribution: log_uniform
@@ -21,8 +21,8 @@ parameters:
     max: -2.00 # exp(-2.00) = 0.14e-1
   batch_size:
     distribution: int_uniform
-    min: 512
-    max: 2048
+    min: 52
+    max: 512
   weight_decay:
     # log uniform distribution between exp(min) and exp(max)
     distribution: log_uniform

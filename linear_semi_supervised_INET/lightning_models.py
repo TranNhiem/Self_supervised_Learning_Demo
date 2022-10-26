@@ -44,7 +44,7 @@ class DownstreamLinearModule_sweep(pl.LightningModule):
     def __build_model(self):
 
         # 1. Backbone
-        backbone = resnet50(pretrained=True)
+        backbone = resnet50(pretrained=False)
         ## Loading weight Configure
         state = torch.load(self.backbone_weights)["state_dict"]  
         for k in list(state.keys()):
