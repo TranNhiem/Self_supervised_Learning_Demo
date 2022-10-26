@@ -33,7 +33,6 @@ weight_path={
     "HAPiCLR_S": "/code_spec/SSL_Downstream_tasks/mscrl-imagenet-simclr+pixel_level_contrastive_background-dim1024-batch1024-200ep-paper-ndv2f2wz-ep=199.ckpt", 
     "DenseCLR": "/code_spec/SSL_Downstream_tasks/densecl_r50_imagenet_200ep.pth",
     "PixelPro": "/code_spec/SSL_Downstream_tasks/pixpro_base_r50_100ep_md5_91059202.pth",
-
 }
 ckpt_type= {
     "MoCo_V2_re": "solo_learn",

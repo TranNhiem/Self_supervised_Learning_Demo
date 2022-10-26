@@ -1,0 +1,3 @@
+from prepare_imagenet_subset import split_imagenet_subset
+
+split_imagenet_subset()

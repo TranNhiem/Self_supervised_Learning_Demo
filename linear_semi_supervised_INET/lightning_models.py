@@ -271,6 +271,7 @@ class DownstreamLinearModule(pl.LightningModule):
         metric: str ,
         optimizier: str,
         task: str ,
+        ckpt_type: str, 
         lr_decay_steps: Optional[Sequence[int]] = None,
         **kwargs,
     ):
@@ -286,6 +287,7 @@ class DownstreamLinearModule(pl.LightningModule):
         self.metric = metric
         self.task = task
         self.scheduler = scheduler
+        self.ckpt_type=  ckpt_type
         self.__build_model()
         self.optim_type=optimizier
         ## Plugin Modules
@@ -355,38 +357,75 @@ class DownstreamLinearModule(pl.LightningModule):
     #     x=F.softmax(x, dim=1)
     #     return x
 
-
-
     def __build_model(self):
 
-        # 1. Backbone
-        backbone = resnet50(pretrained=True)
-        ## Loading weight Configure
-        state = torch.load(self.backbone_weights)["state_dict"]  
-        for k in list(state.keys()):
-            if "backbone" in k:
-                state[k.replace("backbone.", "")] = state[k]
-            del state[k]
-        backbone.load_state_dict(state, strict=False)
+        backbone = resnet50(pretrained=False)#pretrained=False
+        backbone.fc = nn.Identity()
+        feature_dim = backbone.inplanes
+        
+        # for name, param in backbone.named_parameters():
+        #     if name not in ['fc.weight', 'fc.bias']:
+        #         if self.task=="linear_eval": 
+        #             param.requires_grad = False
+        #         else: 
+        #             param.requires_grad = True
+
+        if self.ckpt_type=="solo_learn":
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["state_dict"] 
+            #breakpoint() 
+            for k in list(checkpoint.keys()):
+                if "backbone" in k:
+                    checkpoint[k.replace("backbone.", "")] = checkpoint[k]
+                del checkpoint[k]
+                
+            #ckpt_lst=list(checkpoint.keys())
+            # print(ckpt_lst[0])
+            # breakpoint()
+            backbone.load_state_dict(checkpoint, strict=False)
+            
+            
+        elif self.ckpt_type == "pixelpro":
+            
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["model"]
+            for k in list(checkpoint.keys()):
+                if "module.encoder." in k:
+                    checkpoint[k.replace("module.encoder.", "")] = checkpoint[k]
+                del checkpoint[k]
+            backbone.load_state_dict(checkpoint, strict=True)
+            #breakpoint()
+            
+
+        elif self.ckpt_type == "DenseCL":
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["state_dict"]
+            #breakpoint()
+            backbone.load_state_dict(checkpoint, strict=True)
+            #breakpoint()
 
 
+        elif self.ckpt_type == "moco":
+            checkpoint = torch.load(self.backbone_weights, map_location="cpu")["state_dict"]
+            for k in list(checkpoint.keys()):
+                if "module.encoder_q." in k:
+                    checkpoint[k.replace("module.encoder_q.", "")] = checkpoint[k]
+                del checkpoint[k]
+            
+            backbone.load_state_dict(checkpoint, strict=False)
+            #breakpoint()
+       
+        else: 
+            raise ValueError("ckpt_type not found")
+            #breakpoint()
+      
+        self.feature_extractor = backbone
+        self.feature_extractor.load_state_dict(checkpoint, strict=False)
+        #breakpoint()
         ## ---------- Method 2 -------------
         layers = list(backbone.children())[:-1]
         self.feature_extractor = nn.Sequential(*layers)
    
         # linear model
-        self.classifier = nn.Linear(2048, self.num_classes)
-
- 
-        # # 3. Display how many trainable parameters
-        # parameters = list(self.parameters())
-        # trainable_parameters = list(filter(lambda p: p.requires_grad, parameters))
-        
-        # print(f'Total parameters : {len(parameters)}')
-        # if self.task == 'linear_eval':
-        #     print(f'Encoder Trainable parameters : {len(trainable_parameters)}')
-        #     print(f'Linear Trainable parameters : {self.fc.parameters()}')
-       
+        self.classifier = nn.Linear(feature_dim, self.num_classes)#feature_dim
+    
 
     def forward(self, x):
         ##----Method 1 --------
@@ -562,7 +601,7 @@ class DownstreamLinearModule(pl.LightningModule):
             return [optimizer], [scheduler]
         elif self.scheduler == 'reduce':
             #scheduler = ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
-            scheduler = {"scheduler": ReduceLROnPlateau(optimizer, patience=20, factor=0.5,),  "monitor": "ptl/val_loss"}
+            scheduler = {"scheduler": ReduceLROnPlateau(optimizer, patience=8, factor=0.25,),  "monitor": "ptl/val_loss"}
 
             return [optimizer], [scheduler]        
         else: 

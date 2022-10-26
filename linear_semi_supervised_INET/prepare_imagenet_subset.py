@@ -13,10 +13,10 @@ from torchvision import transforms
 ## Function to Create the Subset of ImageNet
 ## ----------------------------------------------------
 
-def split_imagenet_subset(one_per_txt='/code_spec/downstream_tasks/one_per.txt', 
-                         ten_per_txt='/code_spec/downstream_tasks/ten_per.txt'
-                            , train_path='/img_data/train', one_per_path= '/img_data/one_per/dataset/train', 
-                                ten_per_path= '/img_data/ten_per/dataset/train',):
+def split_imagenet_subset(one_per_txt='/home/harry/ssl_downstream_task/Self_supervised_Learning_Demo/linear_semi_supervised_INET/1percent.txt', 
+                         ten_per_txt='/home/harry/ssl_downstream_task/Self_supervised_Learning_Demo/linear_semi_supervised_INET/10percent.txt'
+                            , train_path='/data1/1K_New/train/', one_per_path= '/data1/1K_New/one_per/dataset/train', 
+                                ten_per_path= '/data1/1K_New/ten_per/dataset/train',):
     ## 
     '''
     one_per.txt, ten_per.txt can download from here https://github.com/google-research/simclr/tree/master/imagenet_subsets
@@ -30,12 +30,15 @@ def split_imagenet_subset(one_per_txt='/code_spec/downstream_tasks/one_per.txt',
     '''
     
     class_names = [x for x in os.listdir(train_path) if '.tar' not in x]
-
+    #print(len(class_names))
     for class_name in class_names:
-        if not os.path.exists(os.path.join(one_per_path, class_name)):
-            os.mkdir(os.path.join(one_per_path, class_name))
-        if not os.path.exists(os.path.join(ten_per_path, class_name)):
-            os.mkdir(os.path.join(ten_per_path, class_name))
+        Path(os.path.join(one_per_path, class_name)).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(ten_per_path, class_name)).mkdir(parents=True, exist_ok=True)
+        # if not os.path.exists(os.path.join(one_per_path, class_name)):
+        #     os.mkdir(os.path.join(one_per_path, class_name))
+
+        # if not os.path.exists(os.path.join(ten_per_path, class_name)):
+        #     os.mkdir(os.path.join(ten_per_path, class_name))
 
     with open(one_per_txt, 'r') as f:
         one_per_images = f.readlines()

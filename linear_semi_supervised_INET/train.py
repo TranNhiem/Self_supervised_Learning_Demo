@@ -14,7 +14,7 @@ parser.add_argument("-da", "--DATASET", type=str, default="one_per", help="SSL B
 parser.add_argument("-m", "--METHOD", type=str, default="HAPiCLR_SimCLR", help="SSL Backbone pretrained weight")
 parser.add_argument("-r", "--root_dir", type=str, default="/img_data/one_per", help="SSL Backbone pretrained weight")
 parser.add_argument("-w", "--weight_path", type=str, default='/data/downstream_tasks/HAPiCLR/Classification/mscrl-imagenet-simclr+pixel_level_contrastive_background-dim1024-paperep=99.ckpt', help="SSL Backbone pretrained weight")
-parser.add_argument("-b", "--batch_size",type=int, default=512,  help="batch_size for evaluation")
+parser.add_argument("-b", "--batch_size",type=int, default=256,  help="batch_size for evaluation")
 parser.add_argument("-d", "--metric",type=str, default="accuracy_1_5_torchmetric", choices=["accuracy_1_5_torchmetric",  "accuracy_1_5", "Mean_average_per_cls"], help="Which metric to use")
 parser.add_argument("-t", "--task", choices=["linear", "finetune"], help="linear_eval or finetune")
 parser.add_argument("-ep", "--epochs", type= int, default =60, help="number of iterations")
@@ -26,15 +26,47 @@ parser.add_argument("-optim", "--optimizier", type=str, default='sgd',choices=['
 
 args = parser.parse_args()
 
+weight_path={
+    #"MoCo_V2": "/code_spec/SSL_Downstream_tasks/moco_v2_200ep_pretrain.pth.tar",
+    "MoCo_V2_re": "/code_spec/SSL_Downstream_tasks/MOCO_v2_200epochs_baseline.pt",
+    "MoCo_V2" : "/home/harry/ssl_downstream_task/moco_v2_200ep_pretrain.pth.tar",
+    "SimCLR":"/home/harry/ssl_downstream_task/simclr-4096-200ep-imagenet-onfm82pd-ep=199.ckpt", 
+    "HAPiCLR_m": "/home/harry/ssl_downstream_task/hapiclr-org_sum_mulitGPU_4096-mocov2+-200ep-imagenet-315kge9v-ep=199.ckpt", 
+    "HAPiCLR_s": "/home/harry/ssl_downstream_task/mscrl-imagenet-simclr+pixel_level_contrastive_background-dim1024-batch1024-200ep-paper-ndv2f2wz-ep=199.ckpt", 
+    "DenseCLR": "/home/harry/ssl_downstream_task/densecl_r50_imagenet_200ep.pth",
+    "PixelPro": "/home/harry/ssl_downstream_task/pixpro_base_r50_100ep_md5_91059202.pth",
+}
+
+ckpt_type= {
+    "MoCo_V2_re": "solo_learn",
+    "MoCo_V2": "moco",
+    "SimCLR": "solo_learn",
+    "HAPiCLR_m": "solo_learn",
+    "HAPiCLR_s": "solo_learn",
+    "DenseCLR": "DenseCL",
+    "PixelPro": "pixelpro",
+
+}
+
+root_dir={
+    "one_per": "/data1/1K_New/one_per/dataset/train/",
+    "ten_per": "/data1/1K_New/ten_per/dataset/train/",
+    "imagenet" : "/data1/1K_New/train/"
+}
+lr_decay_steps={
+    "one_per": [15, 35, 45],
+    "ten_per": [15, 35, 45],
+    "imagenet" : [30, 55, 75], 
+}
 ## Some Parameters setting depend Machine training
 kwargs = {
     "num_classes": 1000,
-    "precision": 16,
+    "precision": 32,
     "lars": False,
     "auto_lr_find": False,# auto
     "exclude_bias_n_norm": False,
     "gpus": 2,    # Number of GPUs
-    "lr_decay_steps": [30, 55, 75], #[30, 6, 75],
+    "lr_decay_steps": lr_decay_steps[args.DATASET],  #[30, 55, 75], #[30, 6, 75],
     "num_workers": 20,
     "num_transfs": 2,  
     "magni_transfs": 5,
@@ -42,7 +74,7 @@ kwargs = {
     "num_workers": 20,
     "metric": args.metric,
     "task": args.task,
-    "backbone_weights": args.weight_path, 
+    "backbone_weights": weight_path[args.METHOD], 
     "RandAug": args.RandAug, 
     "num_transfs":2,  
     "magni_transfs": 5,
@@ -51,8 +83,10 @@ kwargs = {
     "weight_decay": args.weight_decay,
     "scheduler": args.lr_scheduler,
     "optimizier": args.optimizier,
-    # "root_dir": args.root_dir,
+    "root_dir": root_dir[args.DATASET],
+    "ckpt_type": ckpt_type[args.METHOD], 
 }
+
 
 model = DownstreamLinearModule(**kwargs)
 
