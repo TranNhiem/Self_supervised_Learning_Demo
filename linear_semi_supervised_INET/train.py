@@ -16,19 +16,19 @@ parser.add_argument("-r", "--root_dir", type=str, default="/img_data/one_per", h
 parser.add_argument("-w", "--weight_path", type=str, default='/data/downstream_tasks/HAPiCLR/Classification/mscrl-imagenet-simclr+pixel_level_contrastive_background-dim1024-paperep=99.ckpt', help="SSL Backbone pretrained weight")
 parser.add_argument("-b", "--batch_size",type=int, default=256,  help="batch_size for evaluation")
 parser.add_argument("-d", "--metric",type=str, default="accuracy_1_5_torchmetric", choices=["accuracy_1_5_torchmetric",  "accuracy_1_5", "Mean_average_per_cls"], help="Which metric to use")
-parser.add_argument("-t", "--task", choices=["linear", "finetune"], help="linear_eval or finetune")
+parser.add_argument("-t", "--task", required=True, choices=["ImageNet_linear", "linear_eval", "finetune"], help="linear_eval or finetune")
 parser.add_argument("-ep", "--epochs", type= int, default =60, help="number of iterations")
 parser.add_argument( "-gpus", "--gpus", type= list, default =[0,1], help="number of iterations")
 parser.add_argument("-wed", "--weight_decay", type=float, default=5e-7, help="The amount of weight decay to use")
 parser.add_argument("-ra", "--RandAug", type=bool, default=False, help="linear_eval or finetune")
-parser.add_argument("-lr", "--Init_lr", type=float, default=1e-2, help="The initial learning rate")
+parser.add_argument("--Init_lr", type=float, default=1e-2, help="The initial learning rate")
 parser.add_argument("-lr_sch", "--lr_scheduler", type=str, default='step', help="Scheduler lr value during evaluation")
 parser.add_argument("-optim", "--optimizier", type=str, default='sgd',choices=['sgd', 'adamw'], help="Scheduler lr value during evaluation")
 
 args = parser.parse_args()
 gpus_args={
-    "HAPiCLR_m":[1, 2],
-    "HAPiCLR_m":[1, 2],
+    "HAPiCLR_m":[0, 1],
+    "HAPiCLR_s":[0, 1],
     "DenseCLR": [2,3],
     "PixelPro": [2,3],
     "SimCLR": [4,5],
