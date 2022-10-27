@@ -1,0 +1,13 @@
+python train.py --method 'PixelPro' --dataset 'cifar10' --task 'linear_eval' --lr 0.01 --weight_decay 0.00002124 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'cifar10' --task 'finetune' --lr 0.05 --weight_decay 0.000018 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'cifar100' --task 'linear_eval' --lr 0.01 --weight_decay 0.00002124 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'cifar100' --task 'finetune' --lr 0.05 --weight_decay 0.000018 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'food-101' --task 'linear_eval' --lr 0.01292 --weight_decay 0.000000558 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'food-101' --task 'finetune' --lr 0.002784 --weight_decay 0.00001129  --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'SUN397' --task 'linear_eval' --lr 0.0145  --weight_decay 0.0001184 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'SUN397' --task 'finetune' --lr 0.1001  --weight_decay 0.00005988 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'DTD' --task 'linear_eval' --lr 0.04093 --weight_decay 0.000893 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'DTD' --task 'finetune' --lr 0.05723 --weight_decay 0.00006045 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'cars196' --task 'linear_eval' --lr 0.01292  --weight_decay 0.00000558 --lr_sch "reduce"
+python train.py --method 'PixelPro' --dataset 'cars196' --task 'finetune' --lr 0.002784 --weight_decay 0.00001129 --lr_sch "reduce"
+

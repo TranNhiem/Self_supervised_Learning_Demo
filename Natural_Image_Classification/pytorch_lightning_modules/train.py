@@ -24,6 +24,16 @@ parser.add_argument("-optim", "--optimizier", type=str, default='sgd',choices=['
 args = parser.parse_args()
 path= "/clf_ds/"
 root_dir= os.path.join(path, args.dataset, "data/")
+num_gpu={
+    "MoCo_V2_re":  [0, 1],
+    "MoCo_V2": [0, 1],
+    "SimCLR": [2, 3],
+    "HAPiCLR_m":  [3, 4],
+    "HAPiCLR_S":  [4, 5],
+    "DenseCLR":  [6, 7],
+    "PixelPro":  [2, 3],
+
+}
 weight_path={
     #"MoCo_V2": "/code_spec/SSL_Downstream_tasks/moco_v2_200ep_pretrain.pth.tar",
     "MoCo_V2_re": "/code_spec/SSL_Downstream_tasks/MOCO_v2_200epochs_baseline.pt",
